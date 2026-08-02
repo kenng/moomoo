@@ -1,0 +1,34 @@
+stocks:
+  - code: "KWEB"
+    market: US
+    name: KraneShares CSI China Internet ETF
+  - code: "GRAB"
+    market: US
+    name: Grab Holdings
+  - code: "5176"
+    market: MY
+    name: SUNREIT
+  - code: "5123"
+    market: MY
+    name: SENTRAL
+  - code: "4065"
+    market: MY
+    name: PPB
+  - code: "1295"
+    market: MY
+    name: PBBANK
+  - code: "1155"
+    market: MY
+    name: MAYBANK
+  - code: "1066"
+    market: MY
+    name: RHBBANK
+      - code: "6139"
+    market: MY
+    name: TAKAFUL
+  - code: "5318"
+    market: MY
+    name: DXN
+  - code: "5180"
+    market: MY
+    name: CLMT

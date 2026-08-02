@@ -1,5 +1,14 @@
-# Use market: MY|HK|… for bare codes, or prefix codes (HK.01810, MY.1155)
+# Synced from live moomoo positions (stocks/ETFs only; options excluded)
 stocks:
-  - code: "1810"
+  - code: "09988"
     market: HK
-    name: Xiaomi
+    name: BABA-W
+  - code: "01810"
+    market: HK
+    name: XIAOMI-W
+  - code: "00857"
+    market: HK
+    name: PETROCHINA
+  - code: "00823"
+    market: HK
+    name: LINK REIT
