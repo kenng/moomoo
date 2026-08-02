@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "momo"
+version = "0.1.0"
+description = "Moomoo Malaysia news digest and future paper trading helpers"
+requires-python = ">=3.11"
+dependencies = [
+  "moomoo-api>=10.0.0",
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "pydantic-settings>=2.6.0",
+  "PyYAML>=6.0",
+  "SQLAlchemy>=2.0.0",
+  "Jinja2>=3.1.0",
+  "python-multipart>=0.0.12",
+]
+
+[project.scripts]
+momo = "momo.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

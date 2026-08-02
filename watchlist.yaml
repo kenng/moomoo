@@ -1,0 +1,8 @@
+# Bursa Malaysia stocks — codes become MY.{code}
+stocks:
+  - code: "1155"
+    name: Maybank
+  - code: "1023"
+    name: CIMB
+  - code: "1295"
+    name: Public Bank
