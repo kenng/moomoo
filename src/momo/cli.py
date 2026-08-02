@@ -4,27 +4,38 @@ import argparse
 import json
 import sys
 
-from momo.config import get_settings, to_my_code
+from momo.config import bare_code, get_settings, to_symbol
 from momo.opend_client import OpenDError, smoke_test_snapshot
 from momo.services import news_digest
 from momo.watchlist import load_watchlist
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="momo", description="Moomoo MY helpers")
+    parser = argparse.ArgumentParser(prog="momo", description="Moomoo helpers (MY/HK/…)")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_smoke = sub.add_parser("smoke", help="Test OpenD quote connectivity")
-    p_smoke.add_argument("--code", default="1155", help="Bursa code or MY.xxxx")
+    p_smoke.add_argument(
+        "--code",
+        default="1155",
+        help="Stock code (1155, MY.1155, HK.1810, HK.01810)",
+    )
+    p_smoke.add_argument(
+        "--market",
+        default=None,
+        help="Market for bare codes (MY, HK, …). Default: DEFAULT_MARKET from .env",
+    )
 
     p_news = sub.add_parser("news", help="Show cached important news")
-    p_news.add_argument("--code", help="Single stock code (e.g. 1155)")
+    p_news.add_argument("--code", help="Single stock code (e.g. 1155 or HK.1810)")
+    p_news.add_argument("--market", default=None, help="Market for bare codes")
     p_news.add_argument("--watchlist", action="store_true", help="All watchlist stocks")
     p_news.add_argument("--json", action="store_true", help="JSON output")
     p_news.add_argument("--limit", type=int, default=None)
 
     p_refresh = sub.add_parser("refresh", help="Fetch news from OpenD into cache")
     p_refresh.add_argument("--code", help="Single stock code")
+    p_refresh.add_argument("--market", default=None, help="Market for bare codes")
     p_refresh.add_argument("--watchlist", action="store_true", help="Refresh all watchlist")
     p_refresh.add_argument("--json", action="store_true")
 
@@ -54,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _cmd_smoke(args) -> int:
-    symbol = to_my_code(args.code)
+    symbol = to_symbol(args.code, market=args.market)
     result = smoke_test_snapshot(symbol)
     print(json.dumps(result, indent=2, default=str))
     return 0
@@ -72,7 +83,9 @@ def _cmd_watchlist(args) -> int:
 
 def _cmd_news(args) -> int:
     if args.code:
-        data = news_digest.get_digest_for_code(args.code, limit=args.limit)
+        data = news_digest.get_digest_for_code(
+            args.code, limit=args.limit, market=args.market
+        )
     else:
         # default to watchlist
         data = news_digest.get_watchlist_digest(limit_per_stock=args.limit)
@@ -92,12 +105,21 @@ def _cmd_news(args) -> int:
 
 def _cmd_refresh(args) -> int:
     if args.code:
-        stock = next((s for s in load_watchlist() if s["code"] == args.code or s["symbol"] == to_my_code(args.code)), None)
+        symbol = to_symbol(args.code, market=args.market)
+        stock = next(
+            (
+                s
+                for s in load_watchlist()
+                if s["code"] == bare_code(symbol) or s["symbol"] == symbol
+            ),
+            None,
+        )
         if stock is None:
             stock = {
-                "code": args.code.removeprefix("MY.").removeprefix("my."),
-                "symbol": to_my_code(args.code),
-                "name": args.code,
+                "code": bare_code(symbol),
+                "symbol": symbol,
+                "name": bare_code(symbol),
+                "market": symbol.split(".", 1)[0],
             }
         results = [news_digest.refresh_stock_news(stock)]
     else:

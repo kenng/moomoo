@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from momo.adapters import news as news_adapter
 from momo.adapters import quote as quote_adapter
-from momo.config import get_settings, to_my_code
+from momo.config import get_settings, to_symbol
 from momo.db.repo import (
     latest_snapshot,
     list_news_for_symbol,
@@ -88,10 +88,12 @@ def refresh_watchlist() -> list[dict]:
     return results
 
 
-def get_digest_for_code(code: str, limit: int | None = None) -> dict:
+def get_digest_for_code(
+    code: str, limit: int | None = None, market: str | None = None
+) -> dict:
     settings = get_settings()
     limit = limit or settings.news_top_n
-    symbol = to_my_code(code)
+    symbol = to_symbol(code, market=market)
     session = get_session()
     try:
         news = list_news_for_symbol(session, symbol, limit=limit)

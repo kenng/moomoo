@@ -34,7 +34,7 @@ def quote_context() -> Iterator:
         ctx.close()
 
 
-def smoke_test_snapshot(symbol: str = "MY.1155") -> dict:
+def smoke_test_snapshot(symbol: str = "HK.01810") -> dict:
     """Fetch one market snapshot to verify OpenD connectivity."""
     ft = _import_moomoo()
     with quote_context() as ctx:

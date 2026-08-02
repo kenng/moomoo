@@ -14,7 +14,7 @@
 </header>
 
 {% if request.query_params.get('error') %}
-  <div class="error">{{ request.query_params.get('error') }}</div>
+<div class="error">{{ request.query_params.get('error') }}</div>
 {% endif %}
 
 <section class="grid">
@@ -24,18 +24,19 @@
     <div class="meta">{{ item.symbol }}</div>
     {% set snap = item.snapshot %}
     {% if snap %}
-      {% set chg = snap.change_rate or 0 %}
-      <div class="price {% if chg >= 0 %}up{% else %}down{% endif %}">
-        {{ snap.last_price }} · {{ '%.2f'|format(chg) }}%
-      </div>
+    {% set chg = snap.change_rate or 0 %}
+    <div class="price {% if chg >= 0 %}up{% else %}down{% endif %}">
+      {{ snap.last_price }} · {{ '%.2f'|format(chg) }}%
+    </div>
     {% else %}
-      <div class="empty">No snapshot yet</div>
+    <div class="empty">No snapshot yet</div>
     {% endif %}
     <ul class="news-list">
       {% for n in item.news[:3] %}
       <li>
         <span class="score">{{ n.importance_score }}</span>
-        {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+        {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{%
+        endif %}
         <div class="meta">{{ n.news_sub_type }} · {{ n.publish_time }} · {{ n.source }}</div>
       </li>
       {% else %}

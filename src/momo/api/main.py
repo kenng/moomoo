@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from momo.config import get_settings, to_my_code
+from momo.config import bare_code, get_settings, to_symbol
 from momo.opend_client import OpenDError
 from momo.services import news_digest
 from momo.watchlist import load_watchlist
@@ -16,7 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
-app = FastAPI(title="Momo MY News", version="0.1.0")
+app = FastAPI(title="Momo News", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
@@ -38,9 +38,10 @@ def home(request: Request):
 @app.get("/stock/{code}", response_class=HTMLResponse)
 def stock_detail(request: Request, code: str):
     digest = news_digest.get_digest_for_code(code)
+    symbol = to_symbol(code)
     stock = next(
-        (s for s in load_watchlist() if s["code"] == code or s["symbol"] == to_my_code(code)),
-        {"code": code, "symbol": to_my_code(code), "name": code},
+        (s for s in load_watchlist() if s["code"] == bare_code(symbol) or s["symbol"] == symbol),
+        {"code": bare_code(symbol), "symbol": symbol, "name": bare_code(symbol)},
     )
     return templates.TemplateResponse(
         request,
@@ -64,12 +65,13 @@ def refresh_all():
 
 @app.post("/refresh/{code}")
 def refresh_one(code: str):
+    symbol = to_symbol(code)
     stock = next(
-        (s for s in load_watchlist() if s["code"] == code or s["symbol"] == to_my_code(code)),
+        (s for s in load_watchlist() if s["code"] == bare_code(symbol) or s["symbol"] == symbol),
         {
-            "code": code.removeprefix("MY."),
-            "symbol": to_my_code(code),
-            "name": code,
+            "code": bare_code(symbol),
+            "symbol": symbol,
+            "name": bare_code(symbol),
         },
     )
     try:
@@ -94,10 +96,11 @@ def api_news(code: str | None = None, limit: int | None = None):
 @app.post("/api/refresh")
 def api_refresh(code: str | None = Form(default=None)):
     if code:
+        symbol = to_symbol(code)
         stock = {
-            "code": code.removeprefix("MY."),
-            "symbol": to_my_code(code),
-            "name": code,
+            "code": bare_code(symbol),
+            "symbol": symbol,
+            "name": bare_code(symbol),
         }
         return news_digest.refresh_stock_news(stock)
     return news_digest.refresh_watchlist()

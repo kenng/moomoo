@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from momo.config import get_settings, to_my_code
+from momo.config import bare_code, get_settings, to_symbol
 
 
 def load_watchlist(path: Path | None = None) -> list[dict]:
@@ -13,12 +13,15 @@ def load_watchlist(path: Path | None = None) -> list[dict]:
 
     stocks = []
     for item in raw.get("stocks", []):
-        code = str(item["code"])
+        raw_code = str(item["code"])
+        market = item.get("market")
+        symbol = to_symbol(raw_code, market=market)
         stocks.append(
             {
-                "code": code,
-                "symbol": to_my_code(code),
-                "name": item.get("name") or code,
+                "code": bare_code(symbol),
+                "symbol": symbol,
+                "name": item.get("name") or bare_code(symbol),
+                "market": symbol.split(".", 1)[0],
             }
         )
     return stocks

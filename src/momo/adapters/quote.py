@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from momo.config import bare_code
 from momo.opend_client import OpenDError, quote_context
 
 
@@ -22,7 +23,7 @@ def get_snapshots(symbols: list[str]) -> list[dict]:
             rows.append(
                 {
                     "symbol": code,
-                    "stock_code": code.removeprefix("MY."),
+                    "stock_code": bare_code(code),
                     "last_price": _float(row.get("last_price")),
                     "change_rate": _float(row.get("change_rate")),
                     "volume": _float(row.get("volume")),

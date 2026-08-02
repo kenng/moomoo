@@ -6,6 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 
+Market = Literal["MY", "HK", "US", "SG", "SH", "SZ", "JP"]
+KNOWN_MARKETS = ("MY", "HK", "US", "SG", "SH", "SZ", "JP")
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -16,6 +19,9 @@ class Settings(BaseSettings):
 
     opend_host: str = "127.0.0.1"
     opend_port: int = 11111
+
+    # Default market for bare numeric codes (e.g. 1810 → HK.01810 when HK)
+    default_market: Market = "MY"
 
     trading_mode: Literal["paper", "live"] = "paper"
     allow_live_trading: bool = False
@@ -39,9 +45,41 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def to_my_code(code: str) -> str:
-    """Normalize Bursa code to Moomoo MY format."""
+def bare_code(code: str) -> str:
+    """Strip market prefix (MY.1155 → 1155, HK.01810 → 01810)."""
     code = code.strip().upper()
-    if code.startswith("MY."):
-        return code
-    return f"MY.{code}"
+    if "." in code:
+        market, rest = code.split(".", 1)
+        if market in KNOWN_MARKETS:
+            return rest
+    return code
+
+
+def to_symbol(code: str, market: str | None = None) -> str:
+    """Normalize to Moomoo symbol (MY.1155, HK.01810, …)."""
+    code = code.strip().upper()
+    if not code:
+        raise ValueError("stock code is empty")
+
+    if "." in code:
+        prefix, rest = code.split(".", 1)
+        if prefix in KNOWN_MARKETS:
+            return f"{prefix}.{_normalize_local(prefix, rest)}"
+
+    mkt = (market or get_settings().default_market).upper()
+    if mkt not in KNOWN_MARKETS:
+        raise ValueError(f"unsupported market: {mkt}")
+    return f"{mkt}.{_normalize_local(mkt, code)}"
+
+
+def to_my_code(code: str) -> str:
+    """Backward-compatible alias for to_symbol()."""
+    return to_symbol(code)
+
+
+def _normalize_local(market: str, code: str) -> str:
+    code = code.strip().upper()
+    # HK Exchange codes are 5 digits in OpenD (1810 → 01810)
+    if market == "HK" and code.isdigit():
+        return code.zfill(5)
+    return code

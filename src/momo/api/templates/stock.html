@@ -15,19 +15,19 @@
 </header>
 
 {% if request.query_params.get('error') %}
-  <div class="error">{{ request.query_params.get('error') }}</div>
+<div class="error">{{ request.query_params.get('error') }}</div>
 {% endif %}
 
 {% set snap = digest.snapshot %}
 <article class="card" style="margin-bottom: 1rem;">
   {% if snap %}
-    {% set chg = snap.change_rate or 0 %}
-    <div class="price {% if chg >= 0 %}up{% else %}down{% endif %}">
-      Last {{ snap.last_price }} · {{ '%.2f'|format(chg) }}% · vol {{ snap.volume }}
-    </div>
-    <div class="meta">Snapshot {{ snap.fetched_at }}</div>
+  {% set chg = snap.change_rate or 0 %}
+  <div class="price {% if chg >= 0 %}up{% else %}down{% endif %}">
+    Last {{ snap.last_price }} · {{ '%.2f'|format(chg) }}% · vol {{ snap.volume }}
+  </div>
+  <div class="meta">Snapshot {{ snap.fetched_at }}</div>
   {% else %}
-    <div class="empty">No snapshot cached yet.</div>
+  <div class="empty">No snapshot cached yet.</div>
   {% endif %}
 </article>
 
@@ -37,7 +37,8 @@
     {% for n in digest.news %}
     <li>
       <span class="score">{{ n.importance_score }}</span>
-      {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+      {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{%
+      endif %}
       <div class="meta">{{ n.news_sub_type }} · {{ n.publish_time }} · {{ n.source }} · views {{ n.view_count }}</div>
     </li>
     {% else %}
