@@ -98,6 +98,8 @@ button.secondary,
 }
 
 .card {
+  display: flex;
+  flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -180,8 +182,7 @@ button.secondary,
   margin-bottom: 0;
 }
 
-.card .news-item > a,
-.card .news-item > span.score + :not(.meta) {
+.card .news-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -193,7 +194,8 @@ button.secondary,
   justify-content: flex-end;
   align-items: center;
   gap: 0.2rem;
-  margin-top: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
   min-height: 1.35rem;
 }
 

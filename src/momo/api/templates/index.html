@@ -8,7 +8,7 @@
   </div>
   <div class="actions">
     <form method="post" action="/refresh">
-      <button type="submit">Refresh from OpenD</button>
+      <button type="submit">Refresh News</button>
     </form>
   </div>
 </header>
@@ -35,8 +35,8 @@
       {% for n in item.news %}
       <li class="news-item" {% if loop.index0>= 3 %} hidden{% endif %}>
         <span class="score">{{ n.importance_score }}</span>
-        {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{%
-        endif %}
+        {% if n.url %}<a class="news-title" href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else
+        %}<span class="news-title">{{ n.title }}</span>{% endif %}
         <div class="meta">{{ n.news_sub_type }} · {{ n.publish_time|format_publish_time }} · {{ n.source }}</div>
       </li>
       {% else %}
@@ -48,6 +48,8 @@
       <button type="button" class="pager-btn" data-dir="-1" disabled aria-label="Previous news">&lt;</button>
       <button type="button" class="pager-btn" data-dir="1" aria-label="Next news">&gt;</button>
     </nav>
+    {% else %}
+    <div class="news-pager" aria-hidden="true"></div>
     {% endif %}
   </article>
   {% endfor %}
@@ -56,13 +58,13 @@
   document.querySelectorAll(".card").forEach((card) => {
     const list = card.querySelector(".news-list");
     const pager = card.querySelector(".news-pager");
-    if (!list || !pager) return;
+    const [prev, next] = pager ? pager.querySelectorAll(".pager-btn") : [];
+    if (!list || !prev || !next) return;
 
     const items = [...list.querySelectorAll(".news-item")];
     const pageSize = Number(list.dataset.pageSize) || 3;
     const pageCount = Math.ceil(items.length / pageSize);
     let page = 0;
-    const [prev, next] = pager.querySelectorAll(".pager-btn");
 
     function render() {
       items.forEach((item, i) => {
