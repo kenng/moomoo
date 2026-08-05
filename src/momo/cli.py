@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 
-from momo.config import bare_code, get_settings, to_symbol
+from momo.config import get_settings, to_symbol
 from momo.opend_client import OpenDError, smoke_test_snapshot
 from momo.services import news_digest
 from momo.watchlist import load_watchlist, resolve_stock

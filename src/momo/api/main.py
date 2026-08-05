@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -8,9 +9,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from momo.config import get_settings
+from momo.domain.ranking import format_publish_time, parse_publish_time
 from momo.opend_client import OpenDError
 from momo.services import news_digest
 from momo.watchlist import load_watchlist, resolve_stock
+
+_EPOCH = datetime.min.replace(tzinfo=timezone.utc)
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -19,6 +23,7 @@ STATIC_DIR = BASE_DIR / "static"
 app = FastAPI(title="Momo News", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.filters["format_publish_time"] = format_publish_time
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -36,15 +41,26 @@ def home(request: Request):
 
 
 @app.get("/stock/{code}", response_class=HTMLResponse)
-def stock_detail(request: Request, code: str):
+def stock_detail(request: Request, code: str, sort: str = "date"):
     stock = resolve_stock(code)
     digest = news_digest.get_digest_for_code(stock["code"], market=stock["market"])
+    sort = sort if sort in ("date", "score") else "date"
+    news = list(digest.get("news") or [])
+    if sort == "score":
+        news.sort(key=lambda n: n.get("importance_score") or 0, reverse=True)
+    else:
+        news.sort(
+            key=lambda n: parse_publish_time(n.get("publish_time") or "") or _EPOCH,
+            reverse=True,
+        )
+    digest = {**digest, "news": news}
     return templates.TemplateResponse(
         request,
         "stock.html",
         {
             "stock": stock,
             "digest": digest,
+            "sort": sort,
             "error": None,
         },
     )

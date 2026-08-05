@@ -3,8 +3,8 @@
 {% block content %}
 <header>
   <div>
-    <div class="brand">Momo MY News</div>
-    <div class="sub">Important news for your Bursa watchlist (cached locally)</div>
+    <div class="brand">Momo Stock News</div>
+    <div class="sub">Important news for your Stock watchlist (cached locally)</div>
   </div>
   <div class="actions">
     <form method="post" action="/refresh">
@@ -31,19 +31,54 @@
     {% else %}
     <div class="empty">No snapshot yet</div>
     {% endif %}
-    <ul class="news-list">
-      {% for n in item.news[:3] %}
-      <li>
+    <ul class="news-list" data-page-size="3">
+      {% for n in item.news %}
+      <li class="news-item" {% if loop.index0>= 3 %} hidden{% endif %}>
         <span class="score">{{ n.importance_score }}</span>
         {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{%
         endif %}
-        <div class="meta">{{ n.news_sub_type }} · {{ n.publish_time }} · {{ n.source }}</div>
+        <div class="meta">{{ n.news_sub_type }} · {{ n.publish_time|format_publish_time }} · {{ n.source }}</div>
       </li>
       {% else %}
       <li class="empty">No cached news. Refresh from OpenD.</li>
       {% endfor %}
     </ul>
+    {% if item.news|length > 3 %}
+    <nav class="news-pager" aria-label="News pages">
+      <button type="button" class="pager-btn" data-dir="-1" disabled aria-label="Previous news">&lt;</button>
+      <button type="button" class="pager-btn" data-dir="1" aria-label="Next news">&gt;</button>
+    </nav>
+    {% endif %}
   </article>
   {% endfor %}
 </section>
+<script>
+  document.querySelectorAll(".card").forEach((card) => {
+    const list = card.querySelector(".news-list");
+    const pager = card.querySelector(".news-pager");
+    if (!list || !pager) return;
+
+    const items = [...list.querySelectorAll(".news-item")];
+    const pageSize = Number(list.dataset.pageSize) || 3;
+    const pageCount = Math.ceil(items.length / pageSize);
+    let page = 0;
+    const [prev, next] = pager.querySelectorAll(".pager-btn");
+
+    function render() {
+      items.forEach((item, i) => {
+        const start = page * pageSize;
+        item.hidden = i < start || i >= start + pageSize;
+      });
+      prev.disabled = page <= 0;
+      next.disabled = page >= pageCount - 1;
+    }
+
+    pager.addEventListener("click", (e) => {
+      const btn = e.target.closest(".pager-btn");
+      if (!btn || btn.disabled) return;
+      page = Math.max(0, Math.min(pageCount - 1, page + Number(btn.dataset.dir)));
+      render();
+    });
+  });
+</script>
 {% endblock %}

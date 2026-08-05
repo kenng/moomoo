@@ -32,14 +32,22 @@
 </article>
 
 <article class="card">
-  <h2>Important news</h2>
+  <div class="news-header">
+    <h2>Important news</h2>
+    <div class="sort">
+      Sort:
+      <a class="{% if sort == 'date' %}active{% endif %}" href="/stock/{{ stock.symbol }}?sort=date">Date</a>
+      <a class="{% if sort == 'score' %}active{% endif %}" href="/stock/{{ stock.symbol }}?sort=score">Score</a>
+    </div>
+  </div>
   <ul class="news-list">
     {% for n in digest.news %}
     <li>
       <span class="score">{{ n.importance_score }}</span>
       {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{%
       endif %}
-      <div class="meta">{{ n.news_sub_type }} · {{ n.publish_time }} · {{ n.source }} · views {{ n.view_count }}</div>
+      <div class="meta">{{ n.news_sub_type }} · {{ n.publish_time|format_publish_time }} · {{ n.source }} · views {{
+        n.view_count }}</div>
     </li>
     {% else %}
     <li class="empty">No cached news. Refresh this stock from OpenD.</li>

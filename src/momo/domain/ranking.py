@@ -45,9 +45,9 @@ def score_news_item(
     return round(score, 2)
 
 
-def _recency_boost(publish_time: str) -> float:
+def parse_publish_time(publish_time: str) -> datetime | None:
     if not publish_time:
-        return 0.0
+        return None
     # Moomoo often returns short forms like "5/13" — weak signal only
     now = datetime.now(timezone.utc)
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y", "%m/%d"):
@@ -57,14 +57,30 @@ def _recency_boost(publish_time: str) -> float:
                 parsed = parsed.replace(year=now.year)
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=timezone.utc)
-            hours = max(0.0, (now - parsed).total_seconds() / 3600.0)
-            if hours <= 24:
-                return 20.0
-            if hours <= 72:
-                return 12.0
-            if hours <= 168:
-                return 6.0
-            return 0.0
+            return parsed
         except ValueError:
             continue
+    return None
+
+
+def format_publish_time(publish_time: str) -> str:
+    """Display as dd-mmm-YYYY (e.g. 03-Nov-2026); fall back to raw string."""
+    parsed = parse_publish_time(publish_time)
+    if parsed is None:
+        return publish_time or ""
+    return parsed.strftime("%d-%b-%Y")
+
+
+def _recency_boost(publish_time: str) -> float:
+    parsed = parse_publish_time(publish_time)
+    if parsed is None:
+        return 0.0
+    now = datetime.now(timezone.utc)
+    hours = max(0.0, (now - parsed).total_seconds() / 3600.0)
+    if hours <= 24:
+        return 20.0
+    if hours <= 72:
+        return 12.0
+    if hours <= 168:
+        return 6.0
     return 0.0
