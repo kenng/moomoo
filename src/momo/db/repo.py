@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from momo.db.models import NewsItem, QuoteSnapshot
+from momo.db.models import CashFlowDay, DividendReceived, NewsItem, QuoteSnapshot
 
 
 def upsert_news_items(session: Session, items: list[dict]) -> int:
@@ -66,3 +66,112 @@ def latest_snapshot(session: Session, symbol: str) -> QuoteSnapshot | None:
         .limit(1)
     )
     return session.scalar(stmt)
+
+
+def list_synced_cash_flow_days(
+    session: Session, *, acc_id: str, trd_env: str, start: str, end: str
+) -> set[str]:
+    stmt = (
+        select(CashFlowDay.clearing_date)
+        .where(
+            CashFlowDay.acc_id == acc_id,
+            CashFlowDay.trd_env == trd_env,
+            CashFlowDay.clearing_date >= start,
+            CashFlowDay.clearing_date <= end,
+        )
+    )
+    return set(session.scalars(stmt))
+
+
+def mark_cash_flow_days_synced(
+    session: Session, *, acc_id: str, trd_env: str, clearing_dates: list[str]
+) -> None:
+    now = datetime.utcnow()
+    for day in clearing_dates:
+        existing = session.scalar(
+            select(CashFlowDay).where(
+                CashFlowDay.acc_id == acc_id,
+                CashFlowDay.trd_env == trd_env,
+                CashFlowDay.clearing_date == day,
+            )
+        )
+        if existing:
+            existing.fetched_at = now
+        else:
+            session.add(
+                CashFlowDay(
+                    acc_id=acc_id,
+                    trd_env=trd_env,
+                    clearing_date=day,
+                    fetched_at=now,
+                )
+            )
+    session.commit()
+
+
+def upsert_dividends(session: Session, items: list[dict]) -> int:
+    saved = 0
+    now = datetime.utcnow()
+    fields = (
+        "clearing_date",
+        "settlement_date",
+        "currency",
+        "cashflow_type",
+        "cashflow_direction",
+        "cashflow_amount",
+        "cashflow_remark",
+        "stock_code",
+        "stock_name",
+        "shares",
+    )
+    for item in items:
+        existing = session.scalar(
+            select(DividendReceived).where(
+                DividendReceived.acc_id == item["acc_id"],
+                DividendReceived.trd_env == item["trd_env"],
+                DividendReceived.cashflow_id == item["cashflow_id"],
+            )
+        )
+        if existing:
+            for key in fields:
+                if key in item:
+                    setattr(existing, key, item[key])
+            existing.fetched_at = now
+        else:
+            session.add(
+                DividendReceived(
+                    acc_id=item["acc_id"],
+                    trd_env=item["trd_env"],
+                    cashflow_id=item["cashflow_id"],
+                    fetched_at=now,
+                    **{k: item.get(k) for k in fields},
+                )
+            )
+            saved += 1
+    session.commit()
+    return saved
+
+
+def list_dividends(
+    session: Session,
+    *,
+    trd_env: str,
+    start: str,
+    end: str,
+    acc_id: str | None = None,
+) -> list[DividendReceived]:
+    stmt = (
+        select(DividendReceived)
+        .where(
+            DividendReceived.trd_env == trd_env,
+            DividendReceived.clearing_date >= start,
+            DividendReceived.clearing_date <= end,
+        )
+        .order_by(
+            DividendReceived.clearing_date.desc(),
+            DividendReceived.cashflow_id.desc(),
+        )
+    )
+    if acc_id:
+        stmt = stmt.where(DividendReceived.acc_id == acc_id)
+    return list(session.scalars(stmt))

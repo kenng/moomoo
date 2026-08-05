@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from momo.config import get_settings
 from momo.domain.ranking import format_publish_time, parse_publish_time
 from momo.opend_client import OpenDError
-from momo.services import news_digest
+from momo.services import dividend_history, news_digest, order_history
 from momo.watchlist import load_watchlist, resolve_stock
 
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
@@ -37,6 +37,165 @@ def home(request: Request):
             "settings": get_settings(),
             "error": None,
         },
+    )
+
+
+def _empty_orders_payload(
+    *,
+    acc_id: int | None,
+    start: str | None,
+    end: str | None,
+    trd_env: str | None,
+) -> dict:
+    empty_totals = {
+        "open_positions": 0,
+        "symbols": 0,
+        "orders": 0,
+        "market_val": None,
+        "unrealized_pl": None,
+    }
+    return {
+        "trd_env": (trd_env or get_settings().orders_trd_env).upper(),
+        "accounts": [],
+        "selected_acc_id": acc_id,
+        "start": start or "",
+        "end": end or "",
+        "as_of": "",
+        "stock_groups": [],
+        "option_clusters": [],
+        "totals": empty_totals,
+        "stock_totals": empty_totals,
+        "option_totals": empty_totals,
+    }
+
+
+def _render_orders_page(
+    request: Request,
+    *,
+    asset_kind: str,
+    acc_id: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    trd_env: str | None = None,
+):
+    try:
+        data = order_history.get_order_history(
+            acc_id=acc_id, start=start, end=end, trd_env=trd_env
+        )
+        error = data.get("error")
+    except OpenDError as exc:
+        data = _empty_orders_payload(
+            acc_id=acc_id, start=start, end=end, trd_env=trd_env
+        )
+        error = str(exc)
+
+    page_totals = (
+        data.get("option_totals")
+        if asset_kind == "options"
+        else data.get("stock_totals")
+    )
+    return templates.TemplateResponse(
+        request,
+        "orders.html",
+        {
+            **data,
+            "asset_kind": asset_kind,
+            "totals": page_totals or data.get("totals"),
+            "error": error,
+        },
+    )
+
+
+@app.get("/orders", response_class=HTMLResponse)
+def orders_options_page(
+    request: Request,
+    acc_id: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    trd_env: str | None = None,
+):
+    """Default orders page: options first."""
+    return _render_orders_page(
+        request,
+        asset_kind="options",
+        acc_id=acc_id,
+        start=start,
+        end=end,
+        trd_env=trd_env,
+    )
+
+
+@app.get("/orders/options", response_class=HTMLResponse)
+def orders_options_alias(
+    request: Request,
+    acc_id: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    trd_env: str | None = None,
+):
+    return _render_orders_page(
+        request,
+        asset_kind="options",
+        acc_id=acc_id,
+        start=start,
+        end=end,
+        trd_env=trd_env,
+    )
+
+
+@app.get("/orders/stocks", response_class=HTMLResponse)
+def orders_stocks_page(
+    request: Request,
+    acc_id: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    trd_env: str | None = None,
+):
+    return _render_orders_page(
+        request,
+        asset_kind="stocks",
+        acc_id=acc_id,
+        start=start,
+        end=end,
+        trd_env=trd_env,
+    )
+
+
+@app.get("/dividends", response_class=HTMLResponse)
+def dividends_page(
+    request: Request,
+    acc_id: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    trd_env: str | None = None,
+    sync: int = 1,
+):
+    try:
+        data = dividend_history.get_dividend_history(
+            acc_id=acc_id,
+            start=start,
+            end=end,
+            trd_env=trd_env,
+            sync=bool(sync),
+        )
+        error = data.get("error")
+    except OpenDError as exc:
+        data = {
+            "trd_env": (trd_env or get_settings().orders_trd_env).upper(),
+            "accounts": [],
+            "selected_acc_id": acc_id,
+            "start": start or "",
+            "end": end or "",
+            "as_of": "",
+            "dividends": [],
+            "totals": {"count": 0, "by_currency": []},
+            "sync": {"fetched_days": 0, "remaining_days": 0, "accounts_synced": 0},
+        }
+        error = str(exc)
+    return templates.TemplateResponse(
+        request,
+        "dividends.html",
+        {**data, "error": error},
     )
 
 

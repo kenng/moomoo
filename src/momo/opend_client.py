@@ -34,6 +34,25 @@ def quote_context() -> Iterator:
         ctx.close()
 
 
+@contextmanager
+def trade_context(security_firm: str | None = None) -> Iterator:
+    """OpenSecTradeContext with no market filter so HK + US accounts both appear."""
+    ft = _import_moomoo()
+    settings = get_settings()
+    firm_name = (security_firm or settings.security_firm or "NONE").strip().upper()
+    firm = getattr(ft.SecurityFirm, firm_name, ft.SecurityFirm.NONE)
+    ctx = ft.OpenSecTradeContext(
+        host=settings.opend_host,
+        port=settings.opend_port,
+        filter_trdmarket=ft.TrdMarket.NONE,
+        security_firm=firm,
+    )
+    try:
+        yield ctx
+    finally:
+        ctx.close()
+
+
 def smoke_test_snapshot(symbol: str = "HK.01810") -> dict:
     """Fetch one market snapshot to verify OpenD connectivity."""
     ft = _import_moomoo()

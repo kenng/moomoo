@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     trading_mode: Literal["paper", "live"] = "paper"
     allow_live_trading: bool = False
 
+    # Trade queries (order history / positions). Firm must match OpenD login.
+    # FUTUMY = moomoo MY (your live HK/MY/US book); FUTUSG / FUTUSECURITIES for other entities.
+    security_firm: str = "FUTUMY"
+    # Orders page reads this env. Independent of TRADING_MODE (paper still blocks live *orders*).
+    orders_trd_env: Literal["REAL", "SIMULATE"] = "REAL"
+    # 0 = all accounts for orders_trd_env; otherwise a specific acc_id
+    trd_acc_id: int = 0
+
     watchlist_path: Path = ROOT_DIR / "watchlist.yaml"
     database_url: str = f"sqlite:///{ROOT_DIR / 'data' / 'momo.db'}"
 
@@ -38,6 +46,11 @@ class Settings(BaseSettings):
     @property
     def live_trading_enabled(self) -> bool:
         return self.trading_mode == "live" and self.allow_live_trading
+
+    @property
+    def trd_env_name(self) -> Literal["SIMULATE", "REAL"]:
+        """Env used when *placing* trades (paper → SIMULATE)."""
+        return "REAL" if self.live_trading_enabled else "SIMULATE"
 
 
 @lru_cache

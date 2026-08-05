@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Dividends — Momo{% endblock %}
+{% block content %}
+<header>
+  <div>
+    <div class="brand">Dividends Received</div>
+    <div class="sub">Cash dividends from account cash flow · {{ trd_env }} · {{ start }} → {{ end }}</div>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/">Watchlist</a>
+    <a class="btn secondary"
+      href="/orders?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Orders</a>
+    <a class="btn"
+      href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=1">Sync
+      more</a>
+  </div>
+</header>
+
+<nav class="nav-tabs" aria-label="Trading environment">
+  <a class="{% if trd_env == 'REAL' %}active{% endif %}"
+    href="/dividends?trd_env=REAL&start={{ start }}&end={{ end }}">Live</a>
+  <a class="{% if trd_env == 'SIMULATE' %}active{% endif %}"
+    href="/dividends?trd_env=SIMULATE&start={{ start }}&end={{ end }}">Paper</a>
+</nav>
+
+<nav class="nav-tabs" aria-label="Accounts">
+  <a class="{% if not selected_acc_id %}active{% endif %}"
+    href="/dividends?trd_env={{ trd_env }}&start={{ start }}&end={{ end }}">All accounts</a>
+  {% for acc in accounts %}
+  <a class="{% if selected_acc_id == acc.acc_id %}active{% endif %}"
+    href="/dividends?trd_env={{ trd_env }}&acc_id={{ acc.acc_id }}&start={{ start }}&end={{ end }}">{{
+    acc.markets|join('/') or 'ACC' }} · {{
+    acc.acc_id }}</a>
+  {% endfor %}
+</nav>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<section class="summary">
+  <div>
+    <div class="label">Dividends</div>
+    <div class="value">{{ totals.count }}</div>
+  </div>
+  {% for t in totals.by_currency %}
+  <div>
+    <div class="label">Total {{ t.currency }}</div>
+    <div class="value mono up">{{ '%+.2f'|format(t.amount) }}</div>
+  </div>
+  {% else %}
+  <div>
+    <div class="label">Total</div>
+    <div class="value">—</div>
+  </div>
+  {% endfor %}
+  <div>
+    <div class="label">Cache sync</div>
+    <div class="value" style="font-size:0.95rem;">
+      {% if sync.fetched_days %}got {{ sync.fetched_days }}d{% else %}cached{% endif %}
+      {% if sync.remaining_days %} · {{ sync.remaining_days }}d left{% endif %}
+    </div>
+  </div>
+</section>
+
+{% if sync.remaining_days %}
+<p class="meta">OpenD allows ~20 cash-flow days per 30s. Click <strong>Sync more</strong> to pull the next batch into
+  the local cache.</p>
+{% endif %}
+
+<article class="card">
+  {% if dividends %}
+  <div class="table-wrap">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Stock</th>
+          <th>Type</th>
+          <th class="num">Shares</th>
+          <th class="num">Amount</th>
+          <th>Remark</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in dividends %}
+        <tr>
+          <td>{{ d.clearing_date }}</td>
+          <td>
+            {% if d.stock_name or d.stock_code %}
+            <div>{{ d.stock_name or d.stock_code }}</div>
+            {% if d.stock_code and d.stock_name %}<div class="meta" style="margin:0">{{ d.stock_code }}</div>{% endif %}
+            {% else %}
+            —
+            {% endif %}
+          </td>
+          <td>{{ d.cashflow_type or '—' }}</td>
+          <td class="num">{% if d.shares is not none %}{{ d.shares }}{% else %}—{% endif %}</td>
+          <td class="num up">
+            {% if d.cashflow_amount is not none %}
+            {{ d.currency }} {{ '%+.2f'|format(d.cashflow_amount) }}
+            {% else %}—{% endif %}
+          </td>
+          <td style="white-space:normal; max-width:28rem;">{{ d.cashflow_remark or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    No cash dividends in cache for this range.
+    {% if sync.remaining_days %}Click Sync more to pull clearing dates from OpenD.{% else %}
+    Confirm OpenD is unlocked for trade queries, or widen the date range.{% endif %}
+  </div>
+  {% endif %}
+</article>
+{% endblock %}

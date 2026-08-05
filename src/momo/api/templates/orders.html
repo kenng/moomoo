@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}{% if asset_kind == 'options' %}Options{% else %}Stocks{% endif %} — Orders — Momo{% endblock %}
+{% block content %}
+{% set page_path = '/orders' if asset_kind == 'options' else '/orders/stocks' %}
+{% set qs_env = 'trd_env=' ~ trd_env %}
+{% set qs_acc = ('&acc_id=' ~ selected_acc_id) if selected_acc_id else '' %}
+<header>
+  <div>
+    <div class="brand">{% if asset_kind == 'options' %}Option Orders{% else %}Stock Orders{% endif %}</div>
+    <div class="sub">
+      {% if asset_kind == 'options' %}
+      Open option positions · sorted by expiry · grouped by underlying
+      {% else %}
+      Open stock positions and fills
+      {% endif %}
+      · {{ trd_env }} · {{ start }} → {{ end }}
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/">Watchlist</a>
+    <a class="btn secondary" href="/dividends?{{ qs_env }}{{ qs_acc }}">Dividends</a>
+    <a class="btn" href="{{ page_path }}?{{ qs_env }}{{ qs_acc }}">Refresh</a>
+  </div>
+</header>
+
+<nav class="nav-tabs" aria-label="Asset type">
+  <a class="{% if asset_kind == 'options' %}active{% endif %}" href="/orders?{{ qs_env }}{{ qs_acc }}">Options</a>
+  <a class="{% if asset_kind == 'stocks' %}active{% endif %}" href="/orders/stocks?{{ qs_env }}{{ qs_acc }}">Stocks</a>
+</nav>
+
+<nav class="nav-tabs" aria-label="Trading environment">
+  <a class="{% if trd_env == 'REAL' %}active{% endif %}" href="{{ page_path }}?trd_env=REAL{{ qs_acc }}">Live</a>
+  <a class="{% if trd_env == 'SIMULATE' %}active{% endif %}"
+    href="{{ page_path }}?trd_env=SIMULATE{{ qs_acc }}">Paper</a>
+</nav>
+
+<nav class="nav-tabs" aria-label="Accounts">
+  <a class="{% if not selected_acc_id %}active{% endif %}" href="{{ page_path }}?{{ qs_env }}">All accounts</a>
+  {% for acc in accounts %}
+  <a class="{% if selected_acc_id == acc.acc_id %}active{% endif %}"
+    href="{{ page_path }}?{{ qs_env }}&acc_id={{ acc.acc_id }}">{{ acc.markets|join('/') or 'ACC' }} · {{
+    acc.acc_id }}</a>
+  {% endfor %}
+</nav>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div class="error">{{ request.query_params.get('error') }}</div>
+{% endif %}
+
+<section class="summary">
+  <div>
+    <div class="label">Open positions</div>
+    <div class="value">{{ totals.open_positions }}</div>
+  </div>
+  <div>
+    <div class="label">Symbols</div>
+    <div class="value">{{ totals.symbols }}</div>
+  </div>
+  <div>
+    <div class="label">Orders</div>
+    <div class="value">{{ totals.orders }}</div>
+  </div>
+  <div>
+    <div class="label">Market value</div>
+    <div class="value mono">{% if totals.market_val is not none %}{{ '%.2f'|format(totals.market_val) }}{% else %}—{%
+      endif %}</div>
+  </div>
+  <div>
+    <div class="label">Unrealized P&amp;L</div>
+    {% set pl = totals.unrealized_pl %}
+    <div class="value mono {% if pl is not none %}{% if pl >= 0 %}up{% else %}down{% endif %}{% endif %}">
+      {% if pl is not none %}{{ '%+.2f'|format(pl) }}{% else %}—{% endif %}
+    </div>
+  </div>
+</section>
+
+{% macro position_card(g) %}
+<article class="card order-card">
+  <div class="order-head">
+    <div>
+      <h2>{{ g.name or g.code }}</h2>
+      <div class="meta">
+        {{ g.code }}
+        {% if g.is_option and g.option %}
+        · {{ g.option.option_type }} {{ '%.2f'|format(g.option.strike) }}
+        · expiry <span class="{% if g.option.expired %}down{% elif g.option.days_to_expiry <= 14 %}warn{% endif %}">{{
+          g.option.expiry }}</span>
+        {% if g.option.expired %}(expired){% else %}({{ g.option.days_to_expiry }}d){% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <div class="order-prices">
+      {% if g.last_price is not none %}
+      <div class="price">Last {{ '%.2f'|format(g.last_price) }}</div>
+      {% endif %}
+      {% if g.underlying_last_price is not none %}
+      <div class="meta">Underlying {{ g.option.underlying_symbol }} {{ '%.2f'|format(g.underlying_last_price) }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if g.position %}
+  {% set p = g.position %}
+  <div class="pos-grid">
+    <div>
+      <div class="label">Qty</div>
+      <div class="mono">{{ p.qty }}</div>
+    </div>
+    <div>
+      <div class="label">Avg cost</div>
+      <div class="mono">{% if p.average_cost is not none %}{{ '%.2f'|format(p.average_cost) }}{% else %}—{% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="label">Market value</div>
+      <div class="mono">{% if p.market_val is not none %}{{ '%.2f'|format(p.market_val) }}{% else %}—{% endif %}</div>
+    </div>
+    <div>
+      <div class="label">Unrealized P&amp;L</div>
+      {% set upl = p.unrealized_pl %}
+      <div class="mono {% if upl is not none %}{% if upl >= 0 %}up{% else %}down{% endif %}{% endif %}">
+        {% if upl is not none %}{{ '%+.2f'|format(upl) }}{% else %}—{% endif %}
+        {% if p.pl_ratio is not none %} · {{ '%+.2f'|format(p.pl_ratio) }}%{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if g.orders %}
+  <div class="table-wrap">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Side</th>
+          <th>Status</th>
+          <th class="num">Qty</th>
+          <th class="num">Price</th>
+          <th class="num">Filled</th>
+          <th class="num">Avg fill</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in g.orders %}
+        <tr>
+          <td>{{ o.create_time }}</td>
+          <td class="{% if o.side == 'BUY' %}up{% elif o.side == 'SELL' %}down{% endif %}">{{ o.side }}</td>
+          <td>{{ o.status or '—' }}</td>
+          <td class="num">{{ o.qty }}</td>
+          <td class="num">{% if o.price is not none %}{{ '%.2f'|format(o.price) }}{% else %}—{% endif %}</td>
+          <td class="num">{{ o.dealt_qty }}</td>
+          <td class="num">{% if o.dealt_avg_price %}{{ '%.2f'|format(o.dealt_avg_price) }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">No orders in range</div>
+  {% endif %}
+</article>
+{% endmacro %}
+
+{% if asset_kind == 'options' %}
+{% if option_clusters %}
+{% for cluster in option_clusters %}
+<div class="option-cluster">
+  <div class="cluster-head">
+    <div>
+      <h3>{{ cluster.underlying_root }}</h3>
+      <div class="meta">
+        {{ cluster.underlying_symbol }}
+        · soonest expiry {{ cluster.nearest_expiry }}
+        · {{ cluster.contracts|length }} contract{{ 's' if cluster.contracts|length != 1 else '' }}
+      </div>
+    </div>
+    {% if cluster.underlying_last_price is not none %}
+    <div class="price">Underlying {{ '%.2f'|format(cluster.underlying_last_price) }}</div>
+    {% endif %}
+  </div>
+  {% for g in cluster.contracts %}
+  {{ position_card(g) }}
+  {% endfor %}
+</div>
+{% endfor %}
+{% else %}
+<article class="card">
+  <div class="empty">No open option positions for {{ trd_env }}.</div>
+</article>
+{% endif %}
+{% else %}
+{% if stock_groups %}
+{% for g in stock_groups %}
+{{ position_card(g) }}
+{% endfor %}
+{% else %}
+<article class="card">
+  <div class="empty">No open stock positions for {{ trd_env }}.</div>
+</article>
+{% endif %}
+{% endif %}
+{% endblock %}
