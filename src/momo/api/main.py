@@ -7,10 +7,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from momo.config import bare_code, get_settings, to_symbol
+from momo.config import get_settings
 from momo.opend_client import OpenDError
 from momo.services import news_digest
-from momo.watchlist import load_watchlist
+from momo.watchlist import load_watchlist, resolve_stock
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -37,12 +37,8 @@ def home(request: Request):
 
 @app.get("/stock/{code}", response_class=HTMLResponse)
 def stock_detail(request: Request, code: str):
-    digest = news_digest.get_digest_for_code(code)
-    symbol = to_symbol(code)
-    stock = next(
-        (s for s in load_watchlist() if s["code"] == bare_code(symbol) or s["symbol"] == symbol),
-        {"code": bare_code(symbol), "symbol": symbol, "name": bare_code(symbol)},
-    )
+    stock = resolve_stock(code)
+    digest = news_digest.get_digest_for_code(stock["code"], market=stock["market"])
     return templates.TemplateResponse(
         request,
         "stock.html",
@@ -65,20 +61,12 @@ def refresh_all():
 
 @app.post("/refresh/{code}")
 def refresh_one(code: str):
-    symbol = to_symbol(code)
-    stock = next(
-        (s for s in load_watchlist() if s["code"] == bare_code(symbol) or s["symbol"] == symbol),
-        {
-            "code": bare_code(symbol),
-            "symbol": symbol,
-            "name": bare_code(symbol),
-        },
-    )
+    stock = resolve_stock(code)
     try:
         news_digest.refresh_stock_news(stock)
     except OpenDError as exc:
-        return RedirectResponse(url=f"/stock/{code}?error={exc}", status_code=303)
-    return RedirectResponse(url=f"/stock/{code}", status_code=303)
+        return RedirectResponse(url=f"/stock/{stock['symbol']}?error={exc}", status_code=303)
+    return RedirectResponse(url=f"/stock/{stock['symbol']}", status_code=303)
 
 
 @app.get("/api/watchlist")
@@ -89,18 +77,16 @@ def api_watchlist():
 @app.get("/api/news")
 def api_news(code: str | None = None, limit: int | None = None):
     if code:
-        return news_digest.get_digest_for_code(code, limit=limit)
+        stock = resolve_stock(code)
+        return news_digest.get_digest_for_code(
+            stock["code"], limit=limit, market=stock["market"]
+        )
     return news_digest.get_watchlist_digest(limit_per_stock=limit)
 
 
 @app.post("/api/refresh")
 def api_refresh(code: str | None = Form(default=None)):
     if code:
-        symbol = to_symbol(code)
-        stock = {
-            "code": bare_code(symbol),
-            "symbol": symbol,
-            "name": bare_code(symbol),
-        }
+        stock = resolve_stock(code)
         return news_digest.refresh_stock_news(stock)
     return news_digest.refresh_watchlist()

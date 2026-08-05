@@ -7,7 +7,7 @@ import sys
 from momo.config import bare_code, get_settings, to_symbol
 from momo.opend_client import OpenDError, smoke_test_snapshot
 from momo.services import news_digest
-from momo.watchlist import load_watchlist
+from momo.watchlist import load_watchlist, resolve_stock
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -105,22 +105,7 @@ def _cmd_news(args) -> int:
 
 def _cmd_refresh(args) -> int:
     if args.code:
-        symbol = to_symbol(args.code, market=args.market)
-        stock = next(
-            (
-                s
-                for s in load_watchlist()
-                if s["code"] == bare_code(symbol) or s["symbol"] == symbol
-            ),
-            None,
-        )
-        if stock is None:
-            stock = {
-                "code": bare_code(symbol),
-                "symbol": symbol,
-                "name": bare_code(symbol),
-                "market": symbol.split(".", 1)[0],
-            }
+        stock = resolve_stock(args.code, market=args.market)
         results = [news_digest.refresh_stock_news(stock)]
     else:
         results = news_digest.refresh_watchlist()

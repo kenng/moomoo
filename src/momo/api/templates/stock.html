@@ -8,7 +8,7 @@
     <div class="sub">{{ stock.symbol }}</div>
   </div>
   <div class="actions">
-    <form method="post" action="/refresh/{{ stock.code }}">
+    <form method="post" action="/refresh/{{ stock.symbol }}">
       <button type="submit">Refresh this stock</button>
     </form>
   </div>

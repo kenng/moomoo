@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from momo.adapters import news as news_adapter
 from momo.adapters import quote as quote_adapter
-from momo.config import get_settings, to_symbol
+from momo.config import get_settings
 from momo.db.repo import (
     latest_snapshot,
     list_news_for_symbol,
@@ -12,7 +12,7 @@ from momo.db.repo import (
 )
 from momo.db.session import get_session
 from momo.domain.ranking import score_news_item
-from momo.watchlist import load_watchlist
+from momo.watchlist import load_watchlist, resolve_stock
 
 
 def refresh_stock_news(stock: dict, max_count: int | None = None) -> dict:
@@ -93,7 +93,8 @@ def get_digest_for_code(
 ) -> dict:
     settings = get_settings()
     limit = limit or settings.news_top_n
-    symbol = to_symbol(code, market=market)
+    stock = resolve_stock(code, market=market)
+    symbol = stock["symbol"]
     session = get_session()
     try:
         news = list_news_for_symbol(session, symbol, limit=limit)
@@ -115,7 +116,11 @@ def get_watchlist_digest(limit_per_stock: int | None = None) -> list[dict]:
         digests.append(
             {
                 **stock,
-                **get_digest_for_code(stock["code"], limit=limit_per_stock),
+                **get_digest_for_code(
+                    stock["code"],
+                    limit=limit_per_stock,
+                    market=stock["market"],
+                ),
             }
         )
     return digests

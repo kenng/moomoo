@@ -20,7 +20,7 @@
 <section class="grid">
   {% for item in digests %}
   <article class="card">
-    <h2><a href="/stock/{{ item.code }}">{{ item.name }}</a></h2>
+    <h2><a href="/stock/{{ item.symbol }}">{{ item.name }}</a></h2>
     <div class="meta">{{ item.symbol }}</div>
     {% set snap = item.snapshot %}
     {% if snap %}
