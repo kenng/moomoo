@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     finnhub_api_key: str = ""
     finnhub_news_lookback_days: int = 7
 
+    # Cursor SDK for AI news summaries (leave empty to disable)
+    # Key: https://cursor.com/dashboard/integrations
+    cursor_api_key: str = ""
+    cursor_model: str = "composer-2.5"
+
     # Google Sheets sync (optional — leave empty to disable)
     google_sheets_spreadsheet_id: str = ""
     google_sheets_credentials_path: Path = ROOT_DIR / "credentials" / "google-sheets.json"

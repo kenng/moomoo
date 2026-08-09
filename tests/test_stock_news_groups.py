@@ -28,3 +28,45 @@ def test_group_skips_empty_and_sorts_within_market():
     sections = _group_position_stocks_by_market(groups)
     assert len(sections) == 1
     assert [s["code"] for s in sections[0]["stocks"]] == ["1155", "6139"]
+
+
+def test_group_includes_option_underlyings():
+    stock_groups = [
+        {"code": "HK.09988", "name": "BABA-W", "position": {"qty": 200}},
+    ]
+    option_clusters = [
+        {
+            "underlying_symbol": "US.QCOM",
+            "underlying_root": "QCOM",
+            "contracts": [
+                {"position": {"qty": 1}},
+                {"position": {"qty": 2}},
+                {"position": {"qty": 0}},
+            ],
+        },
+        {
+            # Already held as stock — should annotate, not duplicate.
+            "underlying_symbol": "HK.09988",
+            "underlying_root": "BABA",
+            "contracts": [{"position": {"qty": 1}}],
+        },
+        {
+            # No open contracts — skip.
+            "underlying_symbol": "US.AAPL",
+            "underlying_root": "AAPL",
+            "contracts": [{"position": {"qty": 0}}],
+        },
+    ]
+    sections = _group_position_stocks_by_market(
+        stock_groups, option_clusters=option_clusters
+    )
+    assert [s["market"] for s in sections] == ["HK", "US"]
+    baba = sections[0]["stocks"][0]
+    assert baba["code"] == "09988"
+    assert baba["qty"] == 200
+    assert baba["option_contracts"] == 1
+    qcom = sections[1]["stocks"][0]
+    assert qcom["code"] == "QCOM"
+    assert qcom["name"] == "QCOM"
+    assert qcom["qty"] is None
+    assert qcom["option_contracts"] == 2

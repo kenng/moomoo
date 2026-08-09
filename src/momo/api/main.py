@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,7 +13,13 @@ from momo.adapters.google_sheets import GoogleSheetsError
 from momo.config import bare_code, get_settings
 from momo.domain.ranking import format_publish_time, parse_publish_time
 from momo.opend_client import OpenDError
-from momo.services import dividend_history, news_digest, order_history, sheets_sync
+from momo.services import (
+    ai_news_summary,
+    dividend_history,
+    news_digest,
+    order_history,
+    sheets_sync,
+)
 from momo.watchlist import load_watchlist, resolve_stock
 
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
@@ -20,28 +27,66 @@ _STOCK_NEWS_MARKET_ORDER = ("HK", "US", "MY")
 _KLSE_NEWS_URL = "https://www.klsescreener.com/v2/news/stock/{code}"
 
 
-def _group_position_stocks_by_market(stock_groups: list[dict]) -> list[dict]:
-    """Group open stock positions as HK → US → MY (then any other markets)."""
-    buckets: dict[str, list[dict]] = {m: [] for m in _STOCK_NEWS_MARKET_ORDER}
-    other: list[dict] = []
+def _group_position_stocks_by_market(
+    stock_groups: list[dict],
+    option_clusters: list[dict] | None = None,
+) -> list[dict]:
+    """Group open stock (+ option underlying) positions as HK → US → MY."""
+    by_symbol: dict[str, dict] = {}
     for g in stock_groups:
         symbol = (g.get("code") or "").strip().upper()
         if not symbol:
             continue
         market = symbol.split(".", 1)[0] if "." in symbol else ""
         code = bare_code(symbol)
-        row = {
+        by_symbol[symbol] = {
             "code": code,
             "symbol": symbol,
             "name": g.get("name") or code,
             "market": market,
             "qty": (g.get("position") or {}).get("qty"),
+            "option_contracts": 0,
             "klse_news_url": (
                 _KLSE_NEWS_URL.format(code=code) if market == "MY" else None
             ),
         }
-        if market in buckets:
-            buckets[market].append(row)
+
+    for cluster in option_clusters or []:
+        symbol = (cluster.get("underlying_symbol") or "").strip().upper()
+        if not symbol:
+            continue
+        contracts = cluster.get("contracts") or []
+        option_contracts = sum(
+            1
+            for c in contracts
+            if ((c.get("position") or {}).get("qty") or 0)
+        )
+        if not option_contracts:
+            continue
+        market = symbol.split(".", 1)[0] if "." in symbol else ""
+        code = bare_code(symbol)
+        existing = by_symbol.get(symbol)
+        if existing:
+            existing["option_contracts"] = option_contracts
+            continue
+        root = (cluster.get("underlying_root") or code).strip()
+        by_symbol[symbol] = {
+            "code": code,
+            "symbol": symbol,
+            "name": root or code,
+            "market": market,
+            "qty": None,
+            "option_contracts": option_contracts,
+            "klse_news_url": (
+                _KLSE_NEWS_URL.format(code=code) if market == "MY" else None
+            ),
+        }
+
+    buckets: dict[str, list[dict]] = {m: [] for m in _STOCK_NEWS_MARKET_ORDER}
+    other: list[dict] = []
+    for row in by_symbol.values():
+        if row["market"] in buckets:
+            buckets[row["market"]].append(row)
         else:
             other.append(row)
 
@@ -65,8 +110,25 @@ STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(title="Momo News", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+def format_updated_at(value: datetime | str | None) -> str:
+    """Display AI summary timestamps as dd-mmm-YYYY HH:MM."""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return str(value)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.strftime("%d-%b-%Y %H:%M")
+
+
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.filters["format_publish_time"] = format_publish_time
+templates.env.filters["format_updated_at"] = format_updated_at
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -212,7 +274,7 @@ def stock_news_page(
     acc_id: int | None = None,
     trd_env: str | None = None,
 ):
-    """List open stock positions grouped by market, with KLSE news links for MY."""
+    """List open stock (+ option underlying) positions by market, with KLSE links."""
     try:
         data = order_history.get_order_history(acc_id=acc_id, trd_env=trd_env)
         error = data.get("error")
@@ -222,7 +284,17 @@ def stock_news_page(
         )
         error = str(exc)
 
-    sections = _group_position_stocks_by_market(data.get("stock_groups") or [])
+    sections = _group_position_stocks_by_market(
+        data.get("stock_groups") or [],
+        option_clusters=data.get("option_clusters") or [],
+    )
+    symbols = [
+        s["symbol"] for section in sections for s in section.get("stocks") or []
+    ]
+    summaries = ai_news_summary.get_summaries_for_symbols(symbols)
+    for section in sections:
+        for stock in section.get("stocks") or []:
+            stock["ai_summary"] = summaries.get(stock["symbol"])
     return templates.TemplateResponse(
         request,
         "stock_news.html",
@@ -234,6 +306,34 @@ def stock_news_page(
             "error": error,
         },
     )
+
+
+def _safe_next_url(next_url: str | None, fallback: str) -> str:
+    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+    return fallback
+
+
+@app.post("/ai-summary/{code}")
+def create_ai_summary(
+    code: str,
+    force: int = Form(0),
+    next: str | None = Form(None),
+):
+    """Generate (or re-generate) an AI value-investor summary for a stock's news."""
+    stock = resolve_stock(code)
+    fallback = f"/stock/{stock['symbol']}"
+    next_url = _safe_next_url(next, fallback)
+    try:
+        ai_news_summary.summarize_stock(
+            stock["symbol"], force=bool(force)
+        )
+    except ai_news_summary.AiSummaryError as exc:
+        sep = "&" if "?" in next_url else "?"
+        return RedirectResponse(
+            url=f"{next_url}{sep}error={quote(str(exc))}", status_code=303
+        )
+    return RedirectResponse(url=next_url, status_code=303)
 
 
 @app.get("/dividends", response_class=HTMLResponse)

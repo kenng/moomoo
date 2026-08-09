@@ -579,4 +579,122 @@ button.secondary,
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  align-items: center;
+}
+
+.inline-form {
+  display: inline;
+  margin: 0;
+}
+
+.ai-summary {
+  margin: 0.75rem 0 0.25rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed var(--line);
+}
+
+.ai-summary-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.ai-summary-meta {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.ai-summary-preview {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.ai-summary-sections {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.ai-summary-section {
+  margin: 0;
+  padding: 0.28rem 0.45rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--line);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+  background: rgba(28, 26, 22, 0.03);
+}
+
+.ai-summary-section.tone-green {
+  border-left-color: #1f8f4e;
+  background: rgba(31, 143, 78, 0.08);
+}
+
+.ai-summary-section.tone-yellow {
+  border-left-color: #c49a1a;
+  background: rgba(196, 154, 26, 0.1);
+}
+
+.ai-summary-section.tone-red {
+  border-left-color: #c0392b;
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.stock-news-ai-summary {
+  margin-top: 0.45rem;
+  max-width: 42rem;
+}
+
+.ai-summary-details {
+  margin-top: 0.4rem;
+}
+
+.ai-summary-details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.ai-summary-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ai-summary-details > summary .ai-summary-meta::before {
+  content: "▸ ";
+}
+
+.ai-summary-details[open] > summary .ai-summary-meta::before {
+  content: "▾ ";
+}
+
+.ai-summary-full {
+  margin: 0.5rem 0 0;
+  padding: 0.65rem 0.75rem;
+  background: rgba(28, 26, 22, 0.03);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 0.86rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.ai-summary-actions {
+  margin-top: 0.55rem;
+}
+
+.ai-summary-actions button {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
 }

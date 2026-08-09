@@ -40,6 +40,31 @@
     {% else %}
     <div class="empty">No snapshot yet</div>
     {% endif %}
+    {% if item.ai_summary %}
+    <div class="ai-summary">
+      <details class="ai-summary-details">
+        <summary>
+          <span class="ai-summary-meta">AI summary{% if item.ai_summary.updated_at %} · {{
+            item.ai_summary.updated_at|format_updated_at }}{% endif %}</span>
+          {% if item.ai_summary.section_headers %}
+          <ul class="ai-summary-sections">
+            {% for h in item.ai_summary.section_headers %}
+            <li class="ai-summary-section tone-{{ h.tone }}">{{ h.line }}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="ai-summary-preview">{{ item.ai_summary.preview }}</p>
+          {% endif %}
+        </summary>
+        <pre class="ai-summary-full">{{ item.ai_summary.summary }}</pre>
+      </details>
+      <form method="post" action="/ai-summary/{{ item.symbol }}" class="inline-form ai-summary-actions">
+        <input type="hidden" name="force" value="1">
+        <input type="hidden" name="next" value="/?source={{ source }}">
+        <button type="submit" class="secondary">Re-summarise</button>
+      </form>
+    </div>
+    {% endif %}
     <ul class="news-list" data-page-size="3">
       {% for n in item.news %}
       <li class="news-item" {% if loop.index0>= 3 %} hidden{% endif %}>

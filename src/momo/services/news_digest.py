@@ -242,6 +242,12 @@ def get_watchlist_digest(
                 ),
             }
         )
+    from momo.services import ai_news_summary
+
+    symbols = [d["symbol"] for d in digests]
+    summaries = ai_news_summary.get_summaries_for_symbols(symbols)
+    for digest in digests:
+        digest["ai_summary"] = summaries.get(digest["symbol"])
     return digests
 
 

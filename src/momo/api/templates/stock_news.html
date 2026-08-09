@@ -6,7 +6,7 @@
 <header>
   <div>
     <div class="brand">Stock News</div>
-    <div class="sub">Open stock positions · HK → US → MY · {{ trd_env }}</div>
+    <div class="sub">Open stock &amp; option underlyings · HK → US → MY · {{ trd_env }}</div>
   </div>
   <div class="actions">
     <a class="btn secondary" href="/">Watchlist</a>
@@ -49,13 +49,36 @@
     <li class="stock-news-row">
       <div class="stock-news-main">
         <a class="stock-news-name" href="/stock/{{ s.symbol }}">{{ s.name }}</a>
-        <div class="meta">{{ s.symbol }}{% if s.qty is not none %} · qty {{ s.qty }}{% endif %}</div>
+        <div class="meta">{{ s.symbol }}{% if s.qty is not none %} · qty {{ s.qty }}{% endif %}{% if s.option_contracts
+          %} · {{ s.option_contracts }} option{% if s.option_contracts != 1 %}s{% endif %}{% endif %}</div>
+        {% if s.ai_summary %}
+        <details class="ai-summary-details stock-news-ai-summary">
+          <summary>
+            <span class="ai-summary-meta">AI summary{% if s.ai_summary.updated_at %} · {{
+              s.ai_summary.updated_at|format_updated_at }}{% endif %}</span>
+            {% if s.ai_summary.section_headers %}
+            <ul class="ai-summary-sections">
+              {% for h in s.ai_summary.section_headers %}
+              <li class="ai-summary-section tone-{{ h.tone }}">{{ h.line }}</li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </summary>
+          <pre class="ai-summary-full">{{ s.ai_summary.summary }}</pre>
+        </details>
+        {% endif %}
       </div>
       <div class="stock-news-actions">
         <a class="btn secondary" href="/stock/{{ s.symbol }}">App news</a>
         {% if s.klse_news_url %}
         <a class="btn" href="{{ s.klse_news_url }}" target="_blank" rel="noopener">KLSE news</a>
         {% endif %}
+        <form method="post" action="/ai-summary/{{ s.symbol }}" class="inline-form">
+          <input type="hidden" name="force" value="{% if s.ai_summary %}1{% else %}0{% endif %}">
+          <input type="hidden" name="next" value="/stock-news?{{ qs_env }}{{ qs_acc }}">
+          <button type="submit" class="secondary">{% if s.ai_summary %}Re-summarise{% else %}AI summary{% endif
+            %}</button>
+        </form>
       </div>
     </li>
     {% endfor %}
@@ -63,6 +86,6 @@
 </section>
 {% endfor %}
 {% else %}
-<div class="empty">No open stock positions.</div>
+<div class="empty">No open stock or option positions.</div>
 {% endif %}
 {% endblock %}

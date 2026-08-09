@@ -5,7 +5,13 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from momo.db.models import CashFlowDay, DividendReceived, NewsItem, QuoteSnapshot
+from momo.db.models import (
+    CashFlowDay,
+    DividendReceived,
+    NewsAiSummary,
+    NewsItem,
+    QuoteSnapshot,
+)
 from momo.domain.ranking import parse_publish_time
 
 
@@ -98,6 +104,52 @@ def latest_snapshot(session: Session, symbol: str) -> QuoteSnapshot | None:
         .limit(1)
     )
     return session.scalar(stmt)
+
+
+def get_ai_summary(session: Session, symbol: str) -> NewsAiSummary | None:
+    return session.scalar(
+        select(NewsAiSummary).where(NewsAiSummary.symbol == symbol)
+    )
+
+
+def upsert_ai_summary(session: Session, item: dict) -> NewsAiSummary:
+    now = datetime.utcnow()
+    existing = get_ai_summary(session, item["symbol"])
+    if existing:
+        existing.stock_code = item.get("stock_code", existing.stock_code)
+        existing.stock_name = item.get("stock_name", existing.stock_name)
+        existing.summary = item["summary"]
+        existing.source_urls = item.get("source_urls", existing.source_urls)
+        existing.model = item.get("model", existing.model)
+        existing.updated_at = now
+        session.commit()
+        session.refresh(existing)
+        return existing
+    row = NewsAiSummary(
+        symbol=item["symbol"],
+        stock_code=item.get("stock_code", ""),
+        stock_name=item.get("stock_name", ""),
+        summary=item["summary"],
+        source_urls=item.get("source_urls", ""),
+        model=item.get("model", ""),
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def list_ai_summaries_for_symbols(
+    session: Session, symbols: list[str]
+) -> dict[str, NewsAiSummary]:
+    if not symbols:
+        return {}
+    rows = session.scalars(
+        select(NewsAiSummary).where(NewsAiSummary.symbol.in_(symbols))
+    )
+    return {row.symbol: row for row in rows}
 
 
 def list_synced_cash_flow_days(
