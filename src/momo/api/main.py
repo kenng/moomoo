@@ -11,8 +11,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
+from starlette.middleware.sessions import SessionMiddleware
 
 from momo.adapters.google_sheets import GoogleSheetsError
+from momo.api.auth import RequireLoginMiddleware, auth_enabled, verify_credentials
 from momo.config import bare_code, get_settings
 from momo.domain.ranking import format_publish_time, parse_publish_time
 from momo.opend_client import OpenDError
@@ -143,6 +145,16 @@ STATIC_DIR = BASE_DIR / "static"
 
 app = FastAPI(title="Momo News", version="0.1.0")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+_settings = get_settings()
+app.add_middleware(RequireLoginMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_settings.session_secret or "momo-dev-session-secret",
+    same_site="lax",
+    https_only=False,
+)
+
+
 def format_updated_at(value: datetime | str | None) -> str:
     """Display AI summary timestamps as dd-mmm-YYYY HH:MM."""
     if value is None or value == "":
@@ -174,6 +186,45 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.filters["format_publish_time"] = format_publish_time
 templates.env.filters["format_updated_at"] = format_updated_at
 templates.env.filters["markdown"] = render_markdown
+templates.env.globals["auth_enabled"] = auth_enabled
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, next: str | None = None):
+    if auth_enabled() and request.session.get("user") == get_settings().auth_username:
+        return RedirectResponse(url=_safe_next_url(next, "/"), status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {"error": None, "next": next or "/"},
+    )
+
+
+@app.post("/login")
+def login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    next: str | None = Form(None),
+):
+    next_url = _safe_next_url(next, "/")
+    if not auth_enabled():
+        return RedirectResponse(url=next_url, status_code=303)
+    if verify_credentials(username, password):
+        request.session["user"] = get_settings().auth_username
+        return RedirectResponse(url=next_url, status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {"error": "Invalid username or password", "next": next_url},
+        status_code=401,
+    )
+
+
+@app.post("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=303)
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Login — Momo{% endblock %}
+{% block content %}
+<section class="login-panel">
+  <div class="brand">Momo</div>
+  <p class="sub">Sign in to continue</p>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <form class="login-form" method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next }}" />
+    <label>
+      Username
+      <input type="text" name="username" autocomplete="username" required autofocus />
+    </label>
+    <label>
+      Password
+      <input type="password" name="password" autocomplete="current-password" required />
+    </label>
+    <button type="submit">Sign in</button>
+  </form>
+</section>
+{% endblock %}

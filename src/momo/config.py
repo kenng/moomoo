@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 
+    # Web UI login (empty username or password → auth disabled)
+    auth_username: str = ""
+    auth_password: str = ""
+    session_secret: str = ""
+
     @property
     def live_trading_enabled(self) -> bool:
         return self.trading_mode == "live" and self.allow_live_trading
