@@ -75,6 +75,46 @@ def list_accounts(trd_env: str | None = None) -> list[dict]:
         return _accounts_from_ctx(ctx, ft, env)
 
 
+def fetch_positions(
+    *,
+    acc_id: int | None = None,
+    trd_env: str | None = None,
+) -> dict:
+    """Accounts + open positions only (no order history)."""
+    import moomoo as ft
+
+    settings = get_settings()
+    env = _trd_env(ft, trd_env or settings.orders_trd_env)
+    if acc_id is None and settings.trd_acc_id:
+        acc_id = settings.trd_acc_id
+
+    with trade_context() as ctx:
+        accounts = _accounts_from_ctx(ctx, ft, env)
+        selected = (
+            [a for a in accounts if a["acc_id"] == acc_id] if acc_id else accounts
+        )
+
+        positions: list[dict] = []
+        skipped: list[dict] = []
+        for acc in selected:
+            aid = acc["acc_id"]
+            try:
+                positions.extend(_positions_from_ctx(ctx, ft, env, aid))
+            except OpenDError as exc:
+                skipped.append({"acc_id": aid, "reason": str(exc)})
+                continue
+
+    skipped_ids = {s["acc_id"] for s in skipped}
+    return {
+        "trd_env": _enum_name(env) or settings.orders_trd_env,
+        "accounts": [a for a in accounts if a["acc_id"] not in skipped_ids],
+        "selected_accounts": [a for a in selected if a["acc_id"] not in skipped_ids],
+        "positions": positions,
+        "skipped_accounts": skipped,
+        "selected_acc_id": acc_id,
+    }
+
+
 def list_positions(acc_id: int, trd_env: str | None = None) -> list[dict]:
     import moomoo as ft
 

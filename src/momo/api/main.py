@@ -178,15 +178,18 @@ templates.env.filters["markdown"] = render_markdown
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
-    """Home: institutional / consensus price targets for the watchlist."""
+    """Home: institutional / consensus price targets for open positions."""
     data = price_targets.get_watchlist_price_targets()
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "items": data["items"],
+            "groups": data.get("groups") or [],
             "last_updated": data.get("last_updated"),
-            "error": None,
+            "source": data.get("source"),
+            "trd_env": data.get("trd_env"),
+            "error": data.get("error"),
         },
     )
 

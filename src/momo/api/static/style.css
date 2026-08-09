@@ -779,6 +779,117 @@ button.secondary,
   font-size: 0.85rem;
 }
 
+.view-toggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: -0.25rem 0 1.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.7);
+}
+
+.view-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.view-btn.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.weight-group {
+  margin-bottom: 1.75rem;
+}
+
+.weight-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.weight-group-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.target-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.target-head h2 {
+  margin: 0;
+}
+
+.weight-badge {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.pos-pricing {
+  margin: 0.45rem 0 0.35rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.pos-price-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.pos-pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.pos-pair .label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pos-pair .mono {
+  font-size: 0.9rem;
+}
+
+.pos-pair .day-chg {
+  font-size: 0.78rem;
+}
+
+.target-card .pos-grid {
+  margin: 0.35rem 0 0.55rem;
+  padding: 0.55rem 0;
+}
+
+.targets-root.view-full .compact-only,
+.targets-root.view-compact .full-only {
+  display: none;
+}
+
 .target-card .target-consensus {
   margin: 0.35rem 0 0.65rem;
 }
@@ -787,16 +898,37 @@ button.secondary,
   font-family: var(--mono);
   font-size: 1.05rem;
   margin-bottom: 0.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.target-card .upside {
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .target-card .target-range {
   margin-bottom: 0.2rem;
 }
 
-.target-card .inst-note {
-  margin-top: 0.5rem;
+.targets-root.view-compact .target-card {
+  padding: 0.85rem 0.95rem;
+}
+
+.targets-root.view-compact .target-consensus {
   margin-bottom: 0;
-  font-size: 0.82rem;
+}
+
+.targets-root.view-compact .grid {
+  gap: 0.65rem;
+}
+
+@media (min-width: 800px) {
+  .targets-root.view-compact .targets-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .inst-details {
