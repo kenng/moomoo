@@ -5,7 +5,8 @@
   <div>
     <div class="brand">Price Targets</div>
     <div class="sub">
-      Open stock &amp; option underlyings · analyst targets from OpenD · cached locally
+      Open stock &amp; option underlyings · analyst targets{% if read_only %} · R2 mirror{% else %} from OpenD · cached
+      locally{% endif %}
       {% if last_updated %} · last updated {{ last_updated|format_updated_at }}{% endif %}
       {% if trd_env %} · {{ trd_env }}{% endif %}
     </div>
@@ -15,9 +16,11 @@
     <a class="btn secondary" href="/holdings-news">Holdings News</a>
     <a class="btn secondary" href="/orders">Orders</a>
     <a class="btn secondary" href="/dividends">Dividends</a>
+    {% if not read_only %}
     <form method="post" action="/refresh-targets">
       <button type="submit">Refresh Targets</button>
     </form>
+    {% endif %}
   </div>
 </header>
 
@@ -108,7 +111,7 @@
             data-sell="{{ c.sell if c and c.sell is not none else '' }}"
             data-analysts="{{ c.total_analysts if c and c.total_analysts is not none else '' }}"
             data-rating_rank="{{ c.rating if c and c.rating is not none else '' }}"
-            data-queried="{{ item.fetched_at.strftime('%Y%m%d%H%M%S') if item.fetched_at else '' }}">
+            data-queried="{{ item.fetched_at|format_sort_key }}">
             <td>
               <a href="/stock/{{ item.symbol }}">{{ item.symbol }}</a>
               <div class="meta">
@@ -164,7 +167,7 @@
             <td class="num">{% if c and c.total_analysts is not none %}{{ c.total_analysts }}{% else %}—{% endif %}</td>
             <td class="num">{% if item.weight_pct is not none %}{{ '%.1f'|format(item.weight_pct) }}{% else %}—{% endif
               %}</td>
-            <td class="num">{% if item.fetched_at %}{{ item.fetched_at.strftime('%d-%m-%y') }}{% else %}—{% endif %}
+            <td class="num">{% if item.fetched_at %}{{ item.fetched_at|format_short_date }}{% else %}—{% endif %}
             </td>
           </tr>
           {% endfor %}

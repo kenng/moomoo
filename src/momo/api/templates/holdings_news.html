@@ -13,7 +13,9 @@
     <a class="btn secondary" href="/stock-news">Momo News</a>
     <a class="btn secondary" href="/orders/stocks?{{ qs_env }}{{ qs_acc }}">Orders</a>
     <a class="btn secondary" href="/dividends?{{ qs_env }}{{ qs_acc }}">Dividends</a>
+    {% if not read_only %}
     <a class="btn" href="/holdings-news?{{ qs_env }}{{ qs_acc }}">Refresh</a>
+    {% endif %}
   </div>
 </header>
 
@@ -74,12 +76,14 @@
         {% if s.klse_news_url %}
         <a class="btn" href="{{ s.klse_news_url }}" target="_blank" rel="noopener">KLSE news</a>
         {% endif %}
+        {% if not read_only %}
         <form method="post" action="/ai-summary/{{ s.symbol }}" class="inline-form">
           <input type="hidden" name="force" value="{% if s.ai_summary %}1{% else %}0{% endif %}">
           <input type="hidden" name="next" value="/holdings-news?{{ qs_env }}{{ qs_acc }}">
           <button type="submit" class="secondary">{% if s.ai_summary %}Re-summarise{% else %}AI summary{% endif
             %}</button>
         </form>
+        {% endif %}
       </div>
     </li>
     {% endfor %}

@@ -16,12 +16,17 @@
 
 <body>
   <div class="wrap">
-    {% if auth_enabled() and request.session.get('user') %}
+    {% if current_user %}
     <div class="session-bar">
-      <span>{{ request.session.get('user') }}</span>
+      <span>{{ current_user }}</span>
       <form method="post" action="/logout">
         <button type="submit" class="secondary">Log out</button>
       </form>
+    </div>
+    {% endif %}
+    {% if read_only and synced_at %}
+    <div class="meta" style="margin-bottom: 0.75rem;">
+      Cloudflare mirror · synced {{ synced_at|format_updated_at }} · read-only
     </div>
     {% endif %}
     {% block content %}{% endblock %}

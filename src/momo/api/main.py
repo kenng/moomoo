@@ -155,20 +155,43 @@ app.add_middleware(
 )
 
 
-def format_updated_at(value: datetime | str | None) -> str:
-    """Display AI summary timestamps as dd-mmm-YYYY HH:MM."""
+def _as_datetime(value: datetime | str | None) -> datetime | None:
     if value is None or value == "":
-        return ""
+        return None
     if isinstance(value, datetime):
         dt = value
     else:
         try:
             dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         except ValueError:
-            return str(value)
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-    return dt.strftime("%d-%b-%Y %H:%M")
+            return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def format_updated_at(value: datetime | str | None) -> str:
+    """Display AI summary timestamps as dd-mmm-YYYY HH:MM."""
+    dt = _as_datetime(value)
+    if dt is None:
+        return "" if value is None or value == "" else str(value)
+    return dt.astimezone(timezone.utc).strftime("%d-%b-%Y %H:%M")
+
+
+def format_short_date(value: datetime | str | None) -> str:
+    """dd-mm-yy for table cells (works with datetime or ISO strings)."""
+    dt = _as_datetime(value)
+    if dt is None:
+        return ""
+    return dt.astimezone(timezone.utc).strftime("%d-%m-%y")
+
+
+def format_sort_key(value: datetime | str | None) -> str:
+    """Compact sortable timestamp for data-* attributes."""
+    dt = _as_datetime(value)
+    if dt is None:
+        return ""
+    return dt.astimezone(timezone.utc).strftime("%Y%m%d%H%M%S")
 
 
 def render_markdown(value: str | None) -> Markup:
@@ -182,9 +205,27 @@ def render_markdown(value: str | None) -> Markup:
     return Markup(html)
 
 
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+def _ui_context(request: Request) -> dict:
+    s = get_settings()
+    user = None
+    if auth_enabled():
+        user = request.session.get("user")
+    return {
+        "read_only": s.read_only_ui,
+        "ui_mode": s.momo_ui_mode,
+        "current_user": user,
+        "synced_at": None,
+    }
+
+
+templates = Jinja2Templates(
+    directory=str(TEMPLATES_DIR),
+    context_processors=[_ui_context],
+)
 templates.env.filters["format_publish_time"] = format_publish_time
 templates.env.filters["format_updated_at"] = format_updated_at
+templates.env.filters["format_short_date"] = format_short_date
+templates.env.filters["format_sort_key"] = format_sort_key
 templates.env.filters["markdown"] = render_markdown
 templates.env.globals["auth_enabled"] = auth_enabled
 
@@ -430,6 +471,15 @@ def _safe_next_url(next_url: str | None, fallback: str) -> str:
     return fallback
 
 
+def _reject_if_read_only(fallback: str = "/") -> RedirectResponse | None:
+    if get_settings().read_only_ui:
+        return RedirectResponse(
+            url=f"{fallback}?error={quote('Read-only UI mode (MOMO_UI_MODE=cloudflare)')}",
+            status_code=303,
+        )
+    return None
+
+
 @app.post("/ai-summary/{code}")
 def create_ai_summary(
     code: str,
@@ -437,6 +487,8 @@ def create_ai_summary(
     next: str | None = Form(None),
 ):
     """Generate (or re-generate) an AI value-investor summary for a stock's news."""
+    if (blocked := _reject_if_read_only("/stock-news")) is not None:
+        return blocked
     stock = resolve_stock(code)
     fallback = f"/stock/{stock['symbol']}"
     next_url = _safe_next_url(next, fallback)
@@ -538,6 +590,8 @@ def stock_detail(
 
 @app.post("/refresh")
 def refresh_all():
+    if (blocked := _reject_if_read_only("/stock-news")) is not None:
+        return blocked
     try:
         news_digest.refresh_watchlist()
     except OpenDError as exc:
@@ -549,6 +603,8 @@ def refresh_all():
 
 @app.post("/refresh-targets")
 def refresh_targets():
+    if (blocked := _reject_if_read_only("/")) is not None:
+        return blocked
     try:
         result = price_targets.refresh_watchlist_targets()
     except OpenDError as exc:
@@ -565,6 +621,8 @@ def refresh_targets():
 
 @app.post("/refresh/{code}")
 def refresh_one(code: str):
+    if (blocked := _reject_if_read_only("/stock-news")) is not None:
+        return blocked
     stock = resolve_stock(code)
     try:
         news_digest.refresh_stock_news(stock)

@@ -36,3 +36,9 @@ Thumbs.db
 *.key
 opend*.log
 credentials/
+
+# Cloudflare Worker
+worker/node_modules/
+worker/.wrangler/
+worker/.venv/
+worker/uv.lock

@@ -61,6 +61,21 @@ class Settings(BaseSettings):
     auth_password: str = ""
     session_secret: str = ""
 
+    # UI hosting mode: local (refresh/AI) | cloudflare (read-only R2 mirror)
+    momo_ui_mode: Literal["local", "cloudflare"] = "local"
+
+    # Cloudflare R2 publish (optional — leave empty to disable `momo publish`)
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = "momo-digest"
+    r2_endpoint: str = ""
+    r2_prefix: str = "momo/"
+
+    @property
+    def read_only_ui(self) -> bool:
+        return self.momo_ui_mode == "cloudflare"
+
     @property
     def live_trading_enabled(self) -> bool:
         return self.trading_mode == "live" and self.allow_live_trading

@@ -21,7 +21,9 @@
     <a class="btn secondary" href="/stock-news">Momo News</a>
     <a class="btn secondary" href="/holdings-news?{{ qs_env }}{{ qs_acc }}">Holdings News</a>
     <a class="btn secondary" href="/dividends?{{ qs_env }}{{ qs_acc }}">Dividends</a>
+    {% if not read_only %}
     <a class="btn" href="{{ page_path }}?{{ qs_env }}{{ qs_acc }}">Refresh</a>
+    {% endif %}
   </div>
 </header>
 

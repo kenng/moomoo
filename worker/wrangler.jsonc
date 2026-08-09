@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "momo-digest",
+  "main": "src/worker.py",
+  "compatibility_date": "2025-11-02",
+  "compatibility_flags": [
+    "python_workers",
+    "python_dedicated_snapshot"
+  ],
+  "assets": {
+    "directory": "./public/",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "r2_buckets": [
+    {
+      "binding": "MOMO_BUCKET",
+      "bucket_name": "momo-digest"
+    }
+  ],
+  "vars": {
+    "R2_PREFIX": "momo/",
+    "MOMO_UI_MODE": "cloudflare"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

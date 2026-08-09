@@ -1,0 +1,7 @@
+{
+  "name": "momo-digest-worker",
+  "private": true,
+  "devDependencies": {
+    "wrangler": "^4.28.0"
+  }
+}

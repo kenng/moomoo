@@ -1,0 +1,19 @@
+[project]
+name = "momo-worker"
+version = "0.1.0"
+description = "Read-only Momo digest mirror on Cloudflare Workers + R2"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "jinja2",
+  "markupsafe",
+  "markdown",
+  "itsdangerous",
+  "python-multipart",
+]
+
+[dependency-groups]
+dev = [
+  "workers-py",
+  "workers-runtime-sdk",
+]

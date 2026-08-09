@@ -12,9 +12,11 @@
     <a class="btn secondary" href="/holdings-news">Holdings News</a>
     <a class="btn secondary" href="/orders">Orders</a>
     <a class="btn secondary" href="/dividends">Dividends</a>
+    {% if not read_only %}
     <form method="post" action="/refresh/{{ stock.symbol }}">
       <button type="submit">Refresh this stock</button>
     </form>
+    {% endif %}
   </div>
 </header>
 
@@ -68,7 +70,8 @@
       </div>
     </li>
     {% else %}
-    <li class="empty">No cached {% if source == 'all' %}news{% else %}{{ source }} news{% endif %}. Refresh this stock.
+    <li class="empty">No cached {% if source == 'all' %}news{% else %}{{ source }} news{% endif %}. {% if read_only
+      %}Publish from local momo.{% else %}Refresh this stock.{% endif %}
     </li>
     {% endfor %}
   </ul>

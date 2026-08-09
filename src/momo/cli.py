@@ -42,6 +42,17 @@ def main(argv: list[str] | None = None) -> int:
     p_wl = sub.add_parser("watchlist", help="List configured watchlist")
     p_wl.add_argument("--json", action="store_true")
 
+    p_publish = sub.add_parser(
+        "publish",
+        help="Export read-only digests to Cloudflare R2 for the Worker mirror",
+    )
+    p_publish.add_argument("--json", action="store_true", help="JSON output")
+    p_publish.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build payloads only; do not upload",
+    )
+
     args = parser.parse_args(argv)
 
     try:
@@ -53,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_refresh(args)
         if args.command == "watchlist":
             return _cmd_watchlist(args)
+        if args.command == "publish":
+            return _cmd_publish(args)
     except OpenDError as exc:
         print(f"OpenD error: {exc}", file=sys.stderr)
         return 2
@@ -127,6 +140,43 @@ def _cmd_refresh(args) -> int:
             )
         for n in r.get("news", [])[:5]:
             print(f"  [{n['importance_score']}] {n['title'][:100]}")
+    return 0
+
+
+def _cmd_publish(args) -> int:
+    from momo.adapters.r2 import R2ConfigError
+    from momo.services import r2_export
+
+    try:
+        if args.dry_run:
+            bundle = r2_export.build_export_bundle()
+            result = {
+                "synced_at": bundle["meta.json"]["synced_at"],
+                "version": bundle["meta.json"]["version"],
+                "keys": sorted(bundle.keys()),
+                "count": len(bundle),
+                "dry_run": True,
+            }
+        else:
+            result = r2_export.publish_to_r2()
+    except R2ConfigError as exc:
+        print(f"R2 config error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+
+    print(
+        f"published {result['count']} objects "
+        f"(synced_at={result['synced_at']})"
+    )
+    if args.dry_run:
+        for key in result["keys"]:
+            print(f"  {key}")
+    else:
+        for key in result.get("uploaded") or []:
+            print(f"  {key}")
     return 0
 
 

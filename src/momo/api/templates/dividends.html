@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Dividends — Momo{% endblock %}
 {% block head %}
-{% if auto_sync %}
+{% if not read_only and auto_sync %}
 <meta http-equiv="refresh"
   content="32;url=/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=1{% if show_all %}&all=1{% endif %}" />
 {% endif %}
@@ -21,9 +21,11 @@
       News</a>
     <a class="btn secondary"
       href="/orders?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Orders</a>
+    {% if not read_only %}
     <a class="btn"
       href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=1{% if show_all %}&all=1{% endif %}">Sync
       more</a>
+    {% endif %}
   </div>
 </header>
 
@@ -60,7 +62,9 @@
     <input type="month" name="end" value="{{ end[:7] }}" required />
   </label>
   <button type="submit" class="secondary" name="sync" value="0">Show</button>
+  {% if not read_only %}
   <button type="submit" name="sync" value="1">Sync range</button>
+  {% endif %}
   <a class="btn{% if not show_all %} secondary{% endif %}"
     href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&all=1">Show
     all collected</a>
