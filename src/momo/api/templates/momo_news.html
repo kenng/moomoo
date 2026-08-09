@@ -4,7 +4,8 @@
 <header>
   <div>
     <div class="brand">Momo News</div>
-    <div class="sub">Important news for your Stock watchlist ({% if read_only %}R2 mirror{% else %}cached locally{% endif
+    <div class="sub">Important news for your Stock watchlist ({% if read_only %}R2 mirror{% else %}cached locally{%
+      endif
       %})</div>
   </div>
   <div class="actions">
@@ -50,6 +51,9 @@
         <summary>
           <span class="ai-summary-meta">AI summary{% if item.ai_summary.updated_at %} · {{
             item.ai_summary.updated_at|format_updated_at }}{% endif %}</span>
+          {% if item.ai_summary.analyst_ratings_preview %}
+          <p class="ai-summary-ratings">{{ item.ai_summary.analyst_ratings_preview }}</p>
+          {% endif %}
           {% if item.ai_summary.section_headers %}
           <ul class="ai-summary-sections">
             {% for h in item.ai_summary.section_headers %}
@@ -63,12 +67,21 @@
         <div class="ai-summary-full markdown-body">{{ item.ai_summary.summary|markdown }}</div>
       </details>
       {% if not read_only %}
-      <form method="post" action="/ai-summary/{{ item.symbol }}" class="inline-form ai-summary-actions">
-        <input type="hidden" name="force" value="1">
-        <input type="hidden" name="next" value="/stock-news?source={{ source }}">
-        <button type="submit" class="secondary">Re-summarise</button>
-      </form>
+      <div class="ai-summary-actions">
+        <button type="button" class="secondary" data-ai-summary-edit data-symbol="{{ item.symbol }}"
+          data-name="{{ item.name }}">Edit</button>
+        <form method="post" action="/ai-summary/{{ item.symbol }}" class="inline-form">
+          <input type="hidden" name="force" value="1">
+          <input type="hidden" name="next" value="/stock-news?source={{ source }}">
+          <button type="submit" class="secondary">Re-summarise</button>
+        </form>
+      </div>
       {% endif %}
+    </div>
+    {% elif not read_only %}
+    <div class="ai-summary-actions" style="margin-top: 0.75rem;">
+      <button type="button" class="secondary" data-ai-summary-edit data-symbol="{{ item.symbol }}"
+        data-name="{{ item.name }}">Edit AI summary</button>
     </div>
     {% endif %}
     <ul class="news-list" data-page-size="3">
@@ -127,4 +140,7 @@
     });
   });
 </script>
+{% if not read_only %}
+{% include "_ai_summary_modal.html" %}
+{% endif %}
 {% endblock %}

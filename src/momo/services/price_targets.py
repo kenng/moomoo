@@ -5,6 +5,7 @@ import logging
 from momo.adapters import orders as orders_adapter
 from momo.adapters import quote as quote_adapter
 from momo.adapters import research as research_adapter
+from momo.adapters import yfinance_research as yfinance_research_adapter
 from momo.config import bare_code, get_settings
 from momo.db.repo import (
     latest_price_target_fetched_at,
@@ -158,8 +159,13 @@ def _merge_stock_position(by_symbol: dict[str, dict], pos: dict) -> None:
     }
 
 
-def _merge_option_underlying(by_symbol: dict[str, dict], pos: dict) -> None:
-    """Map an open option contract onto its underlying ticker for price targets."""
+def _merge_option_underlying(
+    by_symbol: dict[str, dict],
+    pos: dict,
+    *,
+    underlying_symbol: str | None = None,
+) -> None:
+    """Map an open option contract onto its underlying stock ticker."""
     raw = (pos.get("code") or "").strip().upper()
     info = parse_option_code(raw)
     if info is None:
@@ -167,7 +173,10 @@ def _merge_option_underlying(by_symbol: dict[str, dict], pos: dict) -> None:
     qty = pos.get("qty") or 0.0
     if not qty:
         return
-    symbol = info.underlying_symbol
+    symbol = (underlying_symbol or info.underlying_symbol or "").strip().upper()
+    if not symbol:
+        return
+    market = symbol.split(".", 1)[0] if "." in symbol else info.market
     existing = by_symbol.get(symbol)
     if existing:
         existing["option_contracts"] = (existing.get("option_contracts") or 0) + 1
@@ -176,21 +185,34 @@ def _merge_option_underlying(by_symbol: dict[str, dict], pos: dict) -> None:
     by_symbol[symbol] = _empty_position_row(
         symbol=symbol,
         code=code,
-        name=info.underlying_root or code,
-        market=info.market,
+        name=code if market == "HK" else (info.underlying_root or code),
+        market=market,
     )
     by_symbol[symbol]["option_contracts"] = 1
 
 
-def aggregate_positions_for_targets(positions: list[dict]) -> list[dict]:
-    """Aggregate stock positions + option underlyings into target rows."""
+def aggregate_positions_for_targets(
+    positions: list[dict],
+    *,
+    underlying_map: dict[str, str] | None = None,
+) -> list[dict]:
+    """Aggregate stocks; map options onto underlying stock tickers (never option codes)."""
+    underlying_map = {
+        (k or "").strip().upper(): (v or "").strip().upper()
+        for k, v in (underlying_map or {}).items()
+        if k and v
+    }
     by_symbol: dict[str, dict] = {}
     for pos in positions:
         symbol = (pos.get("code") or "").strip().upper()
         if not symbol:
             continue
         if parse_option_code(symbol) is not None:
-            _merge_option_underlying(by_symbol, pos)
+            _merge_option_underlying(
+                by_symbol,
+                pos,
+                underlying_symbol=underlying_map.get(symbol),
+            )
         else:
             _merge_stock_position(by_symbol, pos)
     rows = []
@@ -210,7 +232,22 @@ def _stock_positions_from_opend(
     if acc_id is None and settings.trd_acc_id:
         acc_id = settings.trd_acc_id
     snap = orders_adapter.fetch_positions(acc_id=acc_id, trd_env=trd_env)
-    rows = aggregate_positions_for_targets(snap.get("positions") or [])
+    positions = snap.get("positions") or []
+    option_codes = [
+        (p.get("code") or "").strip().upper()
+        for p in positions
+        if parse_option_code((p.get("code") or "").strip().upper()) is not None
+        and (p.get("qty") or 0)
+    ]
+    underlying_map: dict[str, str] = {}
+    if option_codes:
+        try:
+            underlying_map = quote_adapter.resolve_option_underlyings(option_codes)
+        except OpenDError as exc:
+            logger.warning("option underlying resolve failed: %s", exc)
+    rows = aggregate_positions_for_targets(
+        positions, underlying_map=underlying_map
+    )
     meta = {
         "trd_env": snap.get("trd_env"),
         "selected_acc_id": snap.get("selected_acc_id"),
@@ -384,8 +421,18 @@ def refresh_watchlist_targets(
 
         for stock in stocks:
             symbol = stock["symbol"]
+            market = (stock.get("market") or "").upper()
+            if not market and "." in symbol:
+                market = symbol.split(".", 1)[0]
             try:
-                consensus = research_adapter.get_analyst_consensus(symbol)
+                if market == "MY":
+                    consensus = yfinance_research_adapter.get_analyst_consensus(symbol)
+                    institutions = yfinance_research_adapter.get_institution_targets(
+                        symbol
+                    )
+                else:
+                    consensus = research_adapter.get_analyst_consensus(symbol)
+                    institutions = research_adapter.get_institution_targets(symbol)
                 if consensus:
                     upsert_price_target_consensus(
                         session,
@@ -396,14 +443,17 @@ def refresh_watchlist_targets(
                         },
                     )
                     refreshed += 1
-                institutions = research_adapter.get_institution_targets(symbol)
                 for item in institutions:
                     item["stock_code"] = stock["code"]
                     item["stock_name"] = stock.get("name") or stock["code"]
                 institution_rows += replace_institution_targets(
                     session, symbol=symbol, items=institutions
                 )
-            except OpenDError as exc:
+            except (
+                OpenDError,
+                yfinance_research_adapter.YFinanceError,
+                ValueError,
+            ) as exc:
                 logger.warning("price target refresh failed for %s: %s", symbol, exc)
                 errors.append(f"{symbol}: {exc}")
 

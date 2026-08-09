@@ -251,3 +251,104 @@ def test_summary_dict_includes_section_headers():
     data = ai_news_summary._summary_dict(row)
     assert len(data["section_headers"]) == 2
     assert data["section_headers"][1]["tone"] == "green"
+
+
+_GLUED_PASTE = (
+    "1. EXECUTIVE SUMMARY | 🟢 POSITIVECore Fact: Alpha fact here.  "
+    "Reality vs. Narrative: Narrative note."
+    "2. INTRINSIC VALUE & CASH FLOW IMPACT | 🟢 POSITIVEOwner Earnings Impact: "
+    "Positive cash flow.  Duration Analysis: Structural moat."
+    "3. COMPETITIVE MOAT CHECK | 🟢 MOAT WIDENINGMoat Vector Analysis:"
+    "Switching Costs: Extremely High. Barriers to Entry: High. "
+    "Pricing Power: Strong. Network Effects: High.  "
+    "Moat Trajectory: Strengthening."
+    "4. CAPITAL ALLOCATION & MANAGEMENT EVALUATION | 🟡 NEUTRAL"
+    "Capital Discipline: Prudent.  Alignment: Owner-aligned."
+    "5. KEY RISKS & MARGIN OF SAFETY RED FLAGS | 🟡 RE-EVALUATE"
+    "Accounting & Balance Sheet Risk:Over-reliance on Valuation Gains: Watch NAV. "
+    "Interest Rate Exposure: Refi risk. Downside Protection: Need 25% MOS."
+    "6. THE VERDICT | 🟢 CATALYST FOR BUYINGSignal: Catalyst for Buying. "
+    "Verification Checklist:Income Statement / NPI: Check NPI. "
+    "Cash Flow Statement: Check FCF. Balance Sheet / Notes: Check WALE."
+)
+
+
+def test_format_pasted_summary_splits_glued_sections_and_bullets():
+    formatted = ai_news_summary.format_pasted_summary(_GLUED_PASTE)
+    assert formatted.count("### ") == 6
+    assert "### 1. EXECUTIVE SUMMARY | 🟢 POSITIVE" in formatted
+    assert "**Core Fact:** Alpha fact here." in formatted
+    assert "- **Switching Costs:** Extremely High." in formatted
+    assert "- **Income Statement / NPI:** Check NPI." in formatted
+    assert "**Moat Trajectory:** Strengthening." in formatted
+    assert ai_news_summary.format_pasted_summary(formatted) == formatted
+
+
+def test_format_pasted_summary_empty():
+    assert ai_news_summary.format_pasted_summary("   ") == ""
+
+
+def test_format_pasted_summary_keeps_analyst_ratings_preamble():
+    raw = (
+        "Analyst Ratings Breakdown: (Based on 14 covering analysts)  "
+        "Strong Buy: 0.0%  Buy: 21.4% (3 analysts)  Hold: 78.6% (11 analysts)  "
+        "Underperform: 0.0%  Sell: 0.0%  "
+        "1. EXECUTIVE SUMMARY | 🟢 POSITIVECore Fact: Alpha."
+    )
+    formatted = ai_news_summary.format_pasted_summary(raw)
+    assert formatted.startswith("**Analyst Ratings Breakdown:** (Based on 14 covering analysts)")
+    assert "- **Strong Buy:** 0.0%" in formatted
+    assert "- **Buy:** 21.4% (3 analysts)" in formatted
+    assert "- **Hold:** 78.6% (11 analysts)" in formatted
+    assert "### 1. EXECUTIVE SUMMARY | 🟢 POSITIVE" in formatted
+    assert "**Core Fact:** Alpha." in formatted
+    assert ai_news_summary.format_pasted_summary(formatted) == formatted
+
+
+def test_parse_analyst_ratings_preview_from_formatted_summary():
+    formatted = ai_news_summary.format_pasted_summary(
+        "Analyst Ratings Breakdown: (Based on 14 covering analysts)  "
+        "Strong Buy: 0.0%  Buy: 21.4% (3 analysts)  Hold: 78.6% (11 analysts)  "
+        "Underperform: 0.0%  Sell: 0.0%  "
+        "1. EXECUTIVE SUMMARY | 🟢 STABLE COMPOUNDERCore Fact: Alpha."
+    )
+    preview = ai_news_summary._parse_analyst_ratings_preview(formatted)
+    assert preview == (
+        "*Strong Buy*: 0.0%, *Buy*: 21.4% (3 analysts), "
+        "*Hold*: 78.6% (11 analysts), *Underperform*: 0.0%, *Sell*: 0.0%"
+    )
+
+
+def test_summary_dict_includes_analyst_ratings_preview():
+    formatted = (
+        "**Analyst Ratings Breakdown:** (Based on 3 covering analysts)\n"
+        "- **Strong Buy:** 0.0%\n"
+        "- **Buy:** 100.0% (3 analysts)\n"
+        "- **Hold:** 0.0%\n"
+        "- **Underperform:** 0.0%\n"
+        "- **Sell:** 0.0%\n\n"
+        "### 1. EXECUTIVE SUMMARY | 🟢 STABLE COMPOUNDER\n"
+        "Body"
+    )
+    row = SimpleNamespace(
+        symbol="MY.5176",
+        stock_code="5176",
+        stock_name="Sunway REIT",
+        summary=formatted,
+        source_urls="",
+        model="m",
+        updated_at=None,
+    )
+    data = ai_news_summary._summary_dict(row)
+    assert data["analyst_ratings_preview"].startswith("*Strong Buy*: 0.0%")
+    assert "*Buy*: 100.0% (3 analysts)" in data["analyst_ratings_preview"]
+    assert data["section_headers"][0]["line"].startswith("### 1. EXECUTIVE SUMMARY")
+
+
+def test_parse_analyst_ratings_preview_absent():
+    assert (
+        ai_news_summary._parse_analyst_ratings_preview(
+            "### 1. EXECUTIVE SUMMARY | 🟢 POSITIVE\nBody"
+        )
+        is None
+    )

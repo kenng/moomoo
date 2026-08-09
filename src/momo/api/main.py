@@ -7,7 +7,7 @@ from urllib.parse import quote
 
 import markdown as markdown_lib
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -502,6 +502,62 @@ def create_ai_summary(
             url=f"{next_url}{sep}error={quote(str(exc))}", status_code=303
         )
     return RedirectResponse(url=next_url, status_code=303)
+
+
+@app.get("/api/ai-summary/{code}")
+def api_get_ai_summary(code: str):
+    stock = resolve_stock(code)
+    data = ai_news_summary.get_summary_for_symbol(stock["symbol"])
+    if not data:
+        return {
+            "symbol": stock["symbol"],
+            "stock_code": stock["code"],
+            "stock_name": stock.get("name") or stock["code"],
+            "summary": "",
+            "analyst_ratings_preview": None,
+            "section_headers": [],
+            "model": None,
+            "updated_at": None,
+        }
+    return data
+
+
+@app.post("/api/ai-summary/preview")
+async def api_preview_ai_summary(request: Request):
+    """Format pasted summary text and return markdown + rendered HTML preview."""
+    payload = await request.json()
+    text = str((payload or {}).get("text") or "")
+    formatted = ai_news_summary.format_pasted_summary(text)
+    return {
+        "formatted": formatted,
+        "html": str(render_markdown(formatted)),
+        "analyst_ratings_preview": ai_news_summary._parse_analyst_ratings_preview(
+            formatted
+        ),
+        "section_headers": ai_news_summary._parse_section_headers(formatted),
+    }
+
+
+@app.put("/api/ai-summary/{code}")
+async def api_save_ai_summary(code: str, request: Request):
+    """Save a manually pasted/edited AI summary after formatting."""
+    if get_settings().read_only_ui:
+        return JSONResponse(
+            {"ok": False, "error": "Read-only UI mode"},
+            status_code=403,
+        )
+    payload = await request.json()
+    text = str((payload or {}).get("text") or "")
+    stock_name = (payload or {}).get("stock_name")
+    try:
+        data = ai_news_summary.save_manual_summary(
+            code,
+            text,
+            stock_name=str(stock_name) if stock_name else None,
+        )
+    except ai_news_summary.AiSummaryError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return {"ok": True, "summary": data}
 
 
 @app.get("/dividends", response_class=HTMLResponse)

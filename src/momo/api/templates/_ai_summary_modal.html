@@ -1,0 +1,33 @@
+<div id="ai-summary-modal" class="ai-summary-modal" hidden>
+  <div class="ai-summary-modal-panel" role="dialog" aria-modal="true" aria-labelledby="ai-summary-modal-title">
+    <header class="ai-summary-modal-header">
+      <div>
+        <div id="ai-summary-modal-title" class="ai-summary-modal-title">Edit AI summary</div>
+        <div id="ai-summary-modal-symbol" class="meta"></div>
+      </div>
+      <button type="button" class="secondary" data-ai-summary-close>Close</button>
+    </header>
+    <p class="meta ai-summary-modal-hint">
+      Paste the raw summary (glued sections / missing bullets are fine). Preview updates as you type.
+    </p>
+    <div class="ai-summary-modal-grid">
+      <label class="ai-summary-modal-editor">
+        <span class="ai-summary-label">Raw paste</span>
+        <textarea id="ai-summary-modal-text" rows="18"
+          placeholder="1. EXECUTIVE SUMMARY | 🟢 POSITIVECore Fact: ..."></textarea>
+      </label>
+      <div class="ai-summary-modal-preview-wrap">
+        <span class="ai-summary-label">Formatted preview</span>
+        <div id="ai-summary-modal-preview" class="ai-summary-full markdown-body"></div>
+      </div>
+    </div>
+    <footer class="ai-summary-modal-footer">
+      <span id="ai-summary-modal-status" class="ai-summary-modal-status" aria-live="polite"></span>
+      <div class="ai-summary-modal-footer-actions">
+        <button type="button" class="secondary" data-ai-summary-close>Cancel</button>
+        <button type="button" id="ai-summary-modal-save">Save summary</button>
+      </div>
+    </footer>
+  </div>
+</div>
+<script src="/static/ai_summary_edit.js?v=2" defer></script>

@@ -21,7 +21,8 @@
 
 <nav class="nav-tabs" aria-label="Trading environment">
   <a class="{% if trd_env == 'REAL' %}active{% endif %}" href="/holdings-news?trd_env=REAL{{ qs_acc }}">Live</a>
-  <a class="{% if trd_env == 'SIMULATE' %}active{% endif %}" href="/holdings-news?trd_env=SIMULATE{{ qs_acc }}">Paper</a>
+  <a class="{% if trd_env == 'SIMULATE' %}active{% endif %}"
+    href="/holdings-news?trd_env=SIMULATE{{ qs_acc }}">Paper</a>
 </nav>
 
 <nav class="nav-tabs" aria-label="Accounts">
@@ -59,6 +60,9 @@
           <summary>
             <span class="ai-summary-meta">AI summary{% if s.ai_summary.updated_at %} · {{
               s.ai_summary.updated_at|format_updated_at }}{% endif %}</span>
+            {% if s.ai_summary.analyst_ratings_preview %}
+            <p class="ai-summary-ratings">{{ s.ai_summary.analyst_ratings_preview }}</p>
+            {% endif %}
             {% if s.ai_summary.section_headers %}
             <ul class="ai-summary-sections">
               {% for h in s.ai_summary.section_headers %}
@@ -77,12 +81,16 @@
         <a class="btn" href="{{ s.klse_news_url }}" target="_blank" rel="noopener">KLSE news</a>
         {% endif %}
         {% if not read_only %}
-        <form method="post" action="/ai-summary/{{ s.symbol }}" class="inline-form">
-          <input type="hidden" name="force" value="{% if s.ai_summary %}1{% else %}0{% endif %}">
-          <input type="hidden" name="next" value="/holdings-news?{{ qs_env }}{{ qs_acc }}">
-          <button type="submit" class="secondary">{% if s.ai_summary %}Re-summarise{% else %}AI summary{% endif
-            %}</button>
-        </form>
+        <div class="ai-summary-actions">
+          <button type="button" class="secondary" data-ai-summary-edit data-symbol="{{ s.symbol }}"
+            data-name="{{ s.name }}">Edit</button>
+          <form method="post" action="/ai-summary/{{ s.symbol }}" class="inline-form">
+            <input type="hidden" name="force" value="{% if s.ai_summary %}1{% else %}0{% endif %}">
+            <input type="hidden" name="next" value="/holdings-news?{{ qs_env }}{{ qs_acc }}">
+            <button type="submit" class="secondary">{% if s.ai_summary %}Re-summarise{% else %}AI summary{% endif
+              %}</button>
+          </form>
+        </div>
         {% endif %}
       </div>
     </li>
@@ -92,5 +100,9 @@
 {% endfor %}
 {% else %}
 <div class="empty">No open stock or option positions.</div>
+{% endif %}
+
+{% if not read_only %}
+{% include "_ai_summary_modal.html" %}
 {% endif %}
 {% endblock %}

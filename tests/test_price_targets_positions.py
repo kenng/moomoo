@@ -47,6 +47,7 @@ def test_aggregate_includes_option_underlyings():
     )
     by_symbol = {r["symbol"]: r for r in rows}
     assert set(by_symbol) == {"US.QCOM", "US.AAPL"}
+    assert not any("260911" in s or "260918" in s for s in by_symbol)
 
     qcom = by_symbol["US.QCOM"]
     assert qcom["qty"] == 10
@@ -59,6 +60,40 @@ def test_aggregate_includes_option_underlyings():
     assert aapl["option_contracts"] == 1
     assert aapl["name"] == "AAPL"
     assert aapl["market_val"] is None
+
+
+def test_aggregate_uses_resolved_stock_owner_for_hk_options():
+    """HK option roots (MIU) must map to stock ticker (HK.01810), not HK.MIU."""
+    rows = aggregate_positions_for_targets(
+        [
+            {
+                "code": "HK.01810",
+                "name": "XIAOMI-W",
+                "qty": 3000,
+                "market_val": 80000,
+            },
+            {
+                "code": "HK.MIU260929P22000",
+                "name": "MIU 260929 22.00 P",
+                "qty": -1,
+            },
+            {
+                "code": "HK.MIU260828P21000",
+                "name": "MIU 260828 21.00 P",
+                "qty": -1,
+            },
+        ],
+        underlying_map={
+            "HK.MIU260929P22000": "HK.01810",
+            "HK.MIU260828P21000": "HK.01810",
+        },
+    )
+    by_symbol = {r["symbol"]: r for r in rows}
+    assert set(by_symbol) == {"HK.01810"}
+    assert "HK.MIU" not in by_symbol
+    assert by_symbol["HK.01810"]["option_contracts"] == 2
+    assert by_symbol["HK.01810"]["name"] == "XIAOMI-W"
+    assert by_symbol["HK.01810"]["qty"] == 3000
 
 
 def test_option_only_weight_band():
