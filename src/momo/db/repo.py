@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,9 +12,32 @@ from momo.db.models import (
     NewsAiSummary,
     NewsItem,
     PriceTargetConsensus,
+    PriceTargetConsensusHistory,
     QuoteSnapshot,
 )
 from momo.domain.ranking import parse_publish_time
+
+_CONSENSUS_FIELDS = (
+    "stock_code",
+    "stock_name",
+    "highest",
+    "average",
+    "lowest",
+    "rating",
+    "rating_label",
+    "total_analysts",
+    "update_time_str",
+    "buy",
+    "hold",
+    "sell",
+    "strong_buy",
+    "underperform",
+)
+
+# Prefer a snapshot near 30 days ago; ignore very recent rows as "month ago".
+_MONTH_AGO_TARGET = timedelta(days=30)
+_MONTH_AGO_MIN_AGE = timedelta(days=20)
+_HISTORY_RETENTION = timedelta(days=45)
 
 
 def upsert_news_items(session: Session, items: list[dict]) -> int:
@@ -260,48 +283,163 @@ def list_dividends(
     return list(session.scalars(stmt))
 
 
+def _consensus_payload(item: dict) -> dict:
+    return {k: item.get(k) for k in _CONSENSUS_FIELDS}
+
+
+def _consensus_row_payload(row) -> dict:
+    return {k: getattr(row, k) for k in _CONSENSUS_FIELDS}
+
+
+def _history_should_skip(
+    prev: PriceTargetConsensusHistory | None, item: dict, *, fetched_at: datetime
+) -> bool:
+    """Dedupe only rapid identical refreshes; keep spaced points for month-ago."""
+    if prev is None:
+        return False
+    for key in ("highest", "average", "lowest", "rating", "update_time_str", "total_analysts"):
+        if getattr(prev, key) != item.get(key):
+            return False
+    if prev.fetched_at is None:
+        return False
+    return (fetched_at - prev.fetched_at) < timedelta(hours=12)
+
+
+def _append_consensus_history(
+    session: Session, *, symbol: str, payload: dict, fetched_at: datetime
+) -> None:
+    prev = session.scalar(
+        select(PriceTargetConsensusHistory)
+        .where(PriceTargetConsensusHistory.symbol == symbol)
+        .order_by(PriceTargetConsensusHistory.fetched_at.desc())
+        .limit(1)
+    )
+    if _history_should_skip(prev, payload, fetched_at=fetched_at):
+        return
+    session.add(
+        PriceTargetConsensusHistory(
+            symbol=symbol,
+            fetched_at=fetched_at,
+            **payload,
+        )
+    )
+
+
+def _prune_consensus_history(session: Session, symbol: str) -> None:
+    """Keep recent history plus the best ~1 month ago candidate."""
+    rows = list(
+        session.scalars(
+            select(PriceTargetConsensusHistory)
+            .where(PriceTargetConsensusHistory.symbol == symbol)
+            .order_by(PriceTargetConsensusHistory.fetched_at.desc())
+        )
+    )
+    if len(rows) <= 2:
+        return
+    now = datetime.utcnow()
+    keep_ids = {rows[0].id}  # latest history row
+    month_ago = _pick_month_ago_row(rows, now=now)
+    if month_ago is not None:
+        keep_ids.add(month_ago.id)
+    cutoff = now - _HISTORY_RETENTION
+    for row in rows:
+        if row.id in keep_ids:
+            continue
+        if row.fetched_at >= cutoff and len(keep_ids) < 8:
+            keep_ids.add(row.id)
+            continue
+        session.delete(row)
+
+
+def _pick_month_ago_row(rows: list, *, now: datetime):
+    if not rows:
+        return None
+    ordered = sorted(rows, key=lambda r: r.fetched_at)
+    latest = ordered[-1]
+    older = [r for r in ordered if r.fetched_at < latest.fetched_at]
+    if not older:
+        return None
+    target = now - _MONTH_AGO_TARGET
+    aged = [r for r in older if (now - r.fetched_at) >= _MONTH_AGO_MIN_AGE]
+    pool = aged or older
+    return min(pool, key=lambda r: abs((r.fetched_at - target).total_seconds()))
+
+
 def upsert_price_target_consensus(
     session: Session, item: dict
 ) -> PriceTargetConsensus:
+    """Upsert latest consensus and retain a history point for month-ago diffs."""
     now = datetime.utcnow()
+    symbol = item["symbol"]
+    payload = _consensus_payload(item)
     existing = session.scalar(
-        select(PriceTargetConsensus).where(
-            PriceTargetConsensus.symbol == item["symbol"]
-        )
-    )
-    fields = (
-        "stock_code",
-        "stock_name",
-        "highest",
-        "average",
-        "lowest",
-        "rating",
-        "rating_label",
-        "total_analysts",
-        "update_time_str",
-        "buy",
-        "hold",
-        "sell",
-        "strong_buy",
-        "underperform",
+        select(PriceTargetConsensus).where(PriceTargetConsensus.symbol == symbol)
     )
     if existing:
-        for key in fields:
+        # Archive the previous latest before overwriting so month-ago can resolve.
+        _append_consensus_history(
+            session,
+            symbol=symbol,
+            payload=_consensus_row_payload(existing),
+            fetched_at=existing.fetched_at or now,
+        )
+        for key in _CONSENSUS_FIELDS:
             if key in item:
                 setattr(existing, key, item[key])
         existing.fetched_at = now
+        _append_consensus_history(session, symbol=symbol, payload=payload, fetched_at=now)
+        _prune_consensus_history(session, symbol)
         session.commit()
         session.refresh(existing)
         return existing
     row = PriceTargetConsensus(
-        symbol=item["symbol"],
+        symbol=symbol,
         fetched_at=now,
-        **{k: item.get(k) for k in fields},
+        **payload,
     )
     session.add(row)
+    _append_consensus_history(session, symbol=symbol, payload=payload, fetched_at=now)
     session.commit()
     session.refresh(row)
     return row
+
+
+def list_month_ago_consensus_for_symbols(
+    session: Session, symbols: list[str]
+) -> dict[str, PriceTargetConsensusHistory]:
+    """Best historical consensus near ~30 days ago for each symbol."""
+    if not symbols:
+        return {}
+    rows = list(
+        session.scalars(
+            select(PriceTargetConsensusHistory).where(
+                PriceTargetConsensusHistory.symbol.in_(symbols)
+            )
+        )
+    )
+    by_symbol: dict[str, list[PriceTargetConsensusHistory]] = {s: [] for s in symbols}
+    for row in rows:
+        by_symbol.setdefault(row.symbol, []).append(row)
+
+    now = datetime.utcnow()
+    out: dict[str, PriceTargetConsensusHistory] = {}
+    for symbol, hist in by_symbol.items():
+        picked = _pick_month_ago_row(hist, now=now)
+        if picked is not None:
+            out[symbol] = picked
+            continue
+        # Bootstrap: if history is thin, use current latest when it itself is aged.
+        latest = session.scalar(
+            select(PriceTargetConsensus).where(PriceTargetConsensus.symbol == symbol)
+        )
+        if (
+            latest
+            and latest.fetched_at
+            and (now - latest.fetched_at) >= _MONTH_AGO_MIN_AGE
+        ):
+            # Synthetic history-shaped object is not needed; skip until 2nd fetch.
+            pass
+    return out
 
 
 def replace_institution_targets(

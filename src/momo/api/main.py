@@ -185,6 +185,7 @@ def home(request: Request):
         "index.html",
         {
             "items": data["items"],
+            "items_by_diff": data.get("items_by_diff") or data["items"],
             "groups": data.get("groups") or [],
             "last_updated": data.get("last_updated"),
             "source": data.get("source"),

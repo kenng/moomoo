@@ -10,6 +10,7 @@ from momo.db.repo import (
     latest_price_target_fetched_at,
     latest_snapshot,
     list_institution_targets_for_symbols,
+    list_month_ago_consensus_for_symbols,
     list_price_target_consensus_for_symbols,
     replace_institution_targets,
     save_snapshot,
@@ -259,6 +260,32 @@ def _upside_pct(average: float | None, last_price: float | None) -> float | None
     return ((average - last_price) / last_price) * 100.0
 
 
+def _target_diff(
+    latest_avg: float | None, month_ago_avg: float | None
+) -> tuple[float | None, float | None]:
+    """Return (absolute diff, pct diff) of latest avg vs ~1 month ago avg."""
+    if latest_avg is None or month_ago_avg is None:
+        return None, None
+    diff = latest_avg - month_ago_avg
+    pct = (diff / month_ago_avg) * 100.0 if month_ago_avg else None
+    return diff, pct
+
+
+def _sort_key_largest_diff(item: dict) -> tuple:
+    diff = item.get("target_diff")
+    diff_pct = item.get("target_diff_pct")
+    # Largest absolute move first; prefer pct when both present.
+    magnitude = abs(diff_pct) if diff_pct is not None else (
+        abs(diff) if diff is not None else -1.0
+    )
+    return (
+        0 if diff is not None or diff_pct is not None else 1,
+        -magnitude,
+        -(item.get("weight_pct") if item.get("weight_pct") is not None else -1.0),
+        item.get("code") or "",
+    )
+
+
 def refresh_watchlist_targets(
     *,
     acc_id: int | None = None,
@@ -324,12 +351,14 @@ def get_watchlist_price_targets(
     symbols = [s["symbol"] for s in stocks]
     with get_session() as session:
         consensus_map = list_price_target_consensus_for_symbols(session, symbols)
+        month_ago_map = list_month_ago_consensus_for_symbols(session, symbols)
         institution_map = list_institution_targets_for_symbols(session, symbols)
         last_updated = latest_price_target_fetched_at(session, symbols)
         items = []
         for stock in stocks:
             symbol = stock["symbol"]
             consensus = consensus_map.get(symbol)
+            month_ago = month_ago_map.get(symbol)
             institutions = [
                 _inst_to_dict(r) for r in institution_map.get(symbol) or []
             ]
@@ -342,7 +371,10 @@ def get_watchlist_price_targets(
                     last_price = snap.last_price
                 change_rate = snap.change_rate
             consensus_dict = _row_to_dict(consensus) if consensus else None
+            month_ago_dict = _row_to_dict(month_ago) if month_ago else None
             avg = consensus_dict["average"] if consensus_dict else None
+            month_avg = month_ago_dict["average"] if month_ago_dict else None
+            target_diff, target_diff_pct = _target_diff(avg, month_avg)
             cost = stock.get("average_cost")
             items.append(
                 {
@@ -366,14 +398,19 @@ def get_watchlist_price_targets(
                         else None
                     ),
                     "consensus": consensus_dict,
+                    "consensus_month_ago": month_ago_dict,
+                    "target_diff": target_diff,
+                    "target_diff_pct": target_diff_pct,
                     "upside_pct": _upside_pct(avg, last_price),
                     "vs_cost_pct": _upside_pct(last_price, cost),
                     "institutions": institutions,
                     "fetched_at": consensus.fetched_at if consensus else None,
                 }
             )
+    items_by_diff = sorted(items, key=_sort_key_largest_diff)
     return {
         "items": items,
+        "items_by_diff": items_by_diff,
         "groups": _group_by_weight(items),
         "last_updated": last_updated,
         "source": meta.get("source"),

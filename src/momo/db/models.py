@@ -102,7 +102,7 @@ class DividendReceived(Base):
 
 
 class PriceTargetConsensus(Base):
-    """Cached OpenD analyst consensus target price for a symbol."""
+    """Cached OpenD analyst consensus target price for a symbol (latest query)."""
 
     __tablename__ = "price_target_consensus"
 
@@ -123,6 +123,30 @@ class PriceTargetConsensus(Base):
     strong_buy: Mapped[float | None] = mapped_column(Float, nullable=True)
     underperform: Mapped[float | None] = mapped_column(Float, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PriceTargetConsensusHistory(Base):
+    """Point-in-time consensus fetches for latest vs ~1 month ago diffs."""
+
+    __tablename__ = "price_target_consensus_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    stock_code: Mapped[str] = mapped_column(String(16), index=True)
+    stock_name: Mapped[str] = mapped_column(String(128), default="")
+    highest: Mapped[float | None] = mapped_column(Float, nullable=True)
+    average: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lowest: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_label: Mapped[str] = mapped_column(String(32), default="")
+    total_analysts: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    update_time_str: Mapped[str] = mapped_column(String(32), default="")
+    buy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sell: Mapped[float | None] = mapped_column(Float, nullable=True)
+    strong_buy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    underperform: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
 class InstitutionPriceTarget(Base):

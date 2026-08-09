@@ -913,22 +913,16 @@ button.secondary,
   margin-bottom: 0.2rem;
 }
 
-.targets-root.view-compact .target-card {
-  padding: 0.85rem 0.95rem;
+.target-diff-section {
+  margin-bottom: 1.5rem;
 }
 
-.targets-root.view-compact .target-consensus {
-  margin-bottom: 0;
+.targets-table td .meta {
+  margin-top: 0.1rem;
 }
 
-.targets-root.view-compact .grid {
-  gap: 0.65rem;
-}
-
-@media (min-width: 800px) {
-  .targets-root.view-compact .targets-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
+.targets-table a {
+  font-weight: 600;
 }
 
 .inst-details {

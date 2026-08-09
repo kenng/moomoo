@@ -34,153 +34,219 @@
 <div class="error">{{ error }}</div>
 {% endif %}
 
-{% if groups %}
+{% if items_by_diff or groups %}
 <div id="targets-root" class="targets-root view-compact">
-  {% for group in groups %}
-  <section class="weight-group">
+  <section class="compact-only target-diff-section">
     <div class="weight-group-head">
-      <h2>{{ group.label }}</h2>
-      <div class="meta">
-        {{ group.count }} position{{ 's' if group.count != 1 else '' }}
-        {% if group.weight_pct is not none %} · {{ '%.1f'|format(group.weight_pct) }}% combined{% endif %}
-      </div>
+      <h2>Latest vs 1 month ago</h2>
+      <div class="meta">Sorted by largest target change</div>
     </div>
-    <div class="grid targets-grid">
-      {% for item in group['items'] %}
-      <article class="card target-card">
-        <div class="target-head">
-          <div>
-            <h2><a href="/stock/{{ item.symbol }}">{{ item.name }}</a></h2>
-            <div class="meta">{{ item.symbol }}</div>
-          </div>
-          {% if item.weight_pct is not none %}
-          <div class="weight-badge">{{ '%.1f'|format(item.weight_pct) }}%</div>
-          {% endif %}
-        </div>
-
-        {% set snap = item.snapshot %}
-        {% set chg = snap.change_rate if snap else none %}
-        <div class="pos-pricing">
-          <div class="pos-price-line">
-            <span class="pos-pair">
-              <span class="label">Cost</span>
-              <span class="mono">{% if item.average_cost is not none %}{{ '%.2f'|format(item.average_cost) }}{% else
-                %}—{% endif %}</span>
-            </span>
-            <span class="pos-pair">
-              <span class="label">Last</span>
-              <span class="mono price {% if chg is not none %}{% if chg >= 0 %}up{% else %}down{% endif %}{% endif %}">
-                {% if snap and snap.last_price is not none %}{{ '%.2f'|format(snap.last_price) }}{% else %}—{% endif %}
-                {% if chg is not none %} <span class="day-chg">{{ '%+.2f'|format(chg) }}%</span>{% endif %}
-              </span>
-            </span>
-          </div>
-          <div class="pos-price-line">
-            <span class="pos-pair">
-              <span class="label">Mkt</span>
-              <span class="mono">{% if item.market_val is not none %}{{ '%.0f'|format(item.market_val) }}{% else %}—{%
-                endif %}</span>
-            </span>
-            <span class="pos-pair">
-              <span class="label">P&amp;L</span>
-              {% set upl = item.unrealized_pl %}
-              {% set plr = item.pl_ratio if item.pl_ratio is not none else item.vs_cost_pct %}
-              <span
-                class="mono {% if upl is not none %}{% if upl >= 0 %}up{% else %}down{% endif %}{% elif plr is not none %}{% if plr >= 0 %}up{% else %}down{% endif %}{% endif %}">
-                {% if upl is not none %}{{ '%+.0f'|format(upl) }}{% else %}—{% endif %}
-                {% if plr is not none %} · {{ '%+.1f'|format(plr) }}%{% endif %}
-              </span>
-            </span>
-          </div>
-          {% if item.qty is not none %}
-          <div class="meta compact-only">Qty {{ item.qty }}</div>
-          {% endif %}
-        </div>
-
-        <div class="pos-grid full-only">
-          <div>
-            <div class="label">Qty</div>
-            <div class="mono">{% if item.qty is not none %}{{ item.qty }}{% else %}—{% endif %}</div>
-          </div>
-          <div>
-            <div class="label">Avg cost</div>
-            <div class="mono">{% if item.average_cost is not none %}{{ '%.3f'|format(item.average_cost) }}{% else %}—{%
-              endif %}</div>
-          </div>
-          <div>
-            <div class="label">Market value</div>
-            <div class="mono">{% if item.market_val is not none %}{{ '%.2f'|format(item.market_val) }}{% else %}—{%
-              endif %}</div>
-          </div>
-          <div>
-            <div class="label">Unrealized P&amp;L</div>
-            {% set upl = item.unrealized_pl %}
-            <div class="mono {% if upl is not none %}{% if upl >= 0 %}up{% else %}down{% endif %}{% endif %}">
-              {% if upl is not none %}{{ '%+.2f'|format(upl) }}{% else %}—{% endif %}
-              {% if item.pl_ratio is not none %} · {{ '%+.2f'|format(item.pl_ratio) }}%{% endif %}
-            </div>
-          </div>
-        </div>
-
-        {% set c = item.consensus %}
-        {% if c %}
-        <div class="target-consensus">
-          <div class="target-avg">
-            Target <strong>{% if c.average is not none %}{{ '%.2f'|format(c.average) }}{% else %}—{% endif %}</strong>
-            {% if item.upside_pct is not none %}
-            <span class="upside {% if item.upside_pct >= 0 %}up{% else %}down{% endif %}">
-              {{ '%+.1f'|format(item.upside_pct) }}%
-            </span>
-            {% endif %}
-          </div>
-          <div class="meta target-range full-only">
-            Low {% if c.lowest is not none %}{{ '%.2f'|format(c.lowest) }}{% else %}—{% endif %}
-            · High {% if c.highest is not none %}{{ '%.2f'|format(c.highest) }}{% else %}—{% endif %}
-          </div>
-          <div class="meta full-only">
-            {% if c.rating_label %}{{ c.rating_label }}{% else %}—{% endif %}
-            {% if c.total_analysts %} · {{ c.total_analysts }} analysts{% endif %}
-            {% if c.update_time_str %} · data {{ c.update_time_str }}{% endif %}
-          </div>
-          {% if item.fetched_at %}
-          <div class="meta full-only">Fetched {{ item.fetched_at|format_updated_at }}</div>
-          {% endif %}
-        </div>
-        {% else %}
-        <div class="empty">No target cached. Refresh to fetch.</div>
-        {% endif %}
-
-        {% if item.institutions %}
-        <details class="inst-details full-only">
-          <summary>{{ item.institutions|length }} institution{{ 's' if item.institutions|length != 1 else '' }}
-          </summary>
-          <ul class="inst-list">
-            {% for inst in item.institutions %}
-            <li>
-              <div class="inst-row">
-                <span class="inst-name">{{ inst.institution_name or inst.institution_source_name or 'Institution'
-                  }}</span>
-                <span class="inst-price">{% if inst.target_price is not none %}{{ '%.2f'|format(inst.target_price) }}{%
-                  else
-                  %}—{% endif %}</span>
-              </div>
-              <div class="meta">
-                {{ inst.rating_label or '—' }}
-                {% if inst.recommendation_date_str %} · {{ inst.recommendation_date_str }}{% endif %}
-                {% if inst.rating_url %} · <a href="{{ inst.rating_url }}" target="_blank" rel="noopener">source</a>{%
-                endif
-                %}
-              </div>
-            </li>
-            {% endfor %}
-          </ul>
-        </details>
-        {% endif %}
-      </article>
-      {% endfor %}
+    <div class="table-wrap">
+      <table class="orders-table targets-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th class="num">Wt%</th>
+            <th class="num">Last</th>
+            <th class="num">Cost</th>
+            <th class="num">Target</th>
+            <th class="num">1mo ago</th>
+            <th class="num">Diff</th>
+            <th class="num">Diff%</th>
+            <th class="num">Upside</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items_by_diff %}
+          {% set snap = item.snapshot %}
+          {% set chg = snap.change_rate if snap else none %}
+          {% set c = item.consensus %}
+          {% set m = item.consensus_month_ago %}
+          <tr>
+            <td>
+              <a href="/stock/{{ item.symbol }}">{{ item.name }}</a>
+              <div class="meta">{{ item.symbol }}</div>
+            </td>
+            <td class="num">{% if item.weight_pct is not none %}{{ '%.1f'|format(item.weight_pct) }}{% else %}—{% endif %}</td>
+            <td class="num {% if chg is not none %}{% if chg >= 0 %}up{% else %}down{% endif %}{% endif %}">
+              {% if snap and snap.last_price is not none %}{{ '%.2f'|format(snap.last_price) }}{% else %}—{% endif %}
+              {% if chg is not none %}<div class="meta">{{ '%+.2f'|format(chg) }}%</div>{% endif %}
+            </td>
+            <td class="num">{% if item.average_cost is not none %}{{ '%.2f'|format(item.average_cost) }}{% else %}—{% endif %}</td>
+            <td class="num">{% if c and c.average is not none %}{{ '%.2f'|format(c.average) }}{% else %}—{% endif %}</td>
+            <td class="num">
+              {% if m and m.average is not none %}{{ '%.2f'|format(m.average) }}{% else %}—{% endif %}
+              {% if m and m.fetched_at %}<div class="meta">{{ m.fetched_at|format_updated_at }}</div>{% endif %}
+            </td>
+            <td class="num {% if item.target_diff is not none %}{% if item.target_diff >= 0 %}up{% else %}down{% endif %}{% endif %}">
+              {% if item.target_diff is not none %}{{ '%+.2f'|format(item.target_diff) }}{% else %}—{% endif %}
+            </td>
+            <td class="num {% if item.target_diff_pct is not none %}{% if item.target_diff_pct >= 0 %}up{% else %}down{% endif %}{% endif %}">
+              {% if item.target_diff_pct is not none %}{{ '%+.1f'|format(item.target_diff_pct) }}%{% else %}—{% endif %}
+            </td>
+            <td class="num {% if item.upside_pct is not none %}{% if item.upside_pct >= 0 %}up{% else %}down{% endif %}{% endif %}">
+              {% if item.upside_pct is not none %}{{ '%+.1f'|format(item.upside_pct) }}%{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
-  {% endfor %}
+
+  <div class="full-only">
+    {% for group in groups %}
+    <section class="weight-group">
+      <div class="weight-group-head">
+        <h2>{{ group.label }}</h2>
+        <div class="meta">
+          {{ group.count }} position{{ 's' if group.count != 1 else '' }}
+          {% if group.weight_pct is not none %} · {{ '%.1f'|format(group.weight_pct) }}% combined{% endif %}
+        </div>
+      </div>
+      <div class="grid targets-grid">
+        {% for item in group['items'] %}
+        <article class="card target-card">
+          <div class="target-head">
+            <div>
+              <h2><a href="/stock/{{ item.symbol }}">{{ item.name }}</a></h2>
+              <div class="meta">{{ item.symbol }}</div>
+            </div>
+            {% if item.weight_pct is not none %}
+            <div class="weight-badge">{{ '%.1f'|format(item.weight_pct) }}%</div>
+            {% endif %}
+          </div>
+
+          {% set snap = item.snapshot %}
+          {% set chg = snap.change_rate if snap else none %}
+          <div class="pos-pricing">
+            <div class="pos-price-line">
+              <span class="pos-pair">
+                <span class="label">Cost</span>
+                <span class="mono">{% if item.average_cost is not none %}{{ '%.2f'|format(item.average_cost) }}{% else %}—{% endif %}</span>
+              </span>
+              <span class="pos-pair">
+                <span class="label">Last</span>
+                <span class="mono price {% if chg is not none %}{% if chg >= 0 %}up{% else %}down{% endif %}{% endif %}">
+                  {% if snap and snap.last_price is not none %}{{ '%.2f'|format(snap.last_price) }}{% else %}—{% endif %}
+                  {% if chg is not none %} <span class="day-chg">{{ '%+.2f'|format(chg) }}%</span>{% endif %}
+                </span>
+              </span>
+            </div>
+            <div class="pos-price-line">
+              <span class="pos-pair">
+                <span class="label">Mkt</span>
+                <span class="mono">{% if item.market_val is not none %}{{ '%.0f'|format(item.market_val) }}{% else %}—{% endif %}</span>
+              </span>
+              <span class="pos-pair">
+                <span class="label">P&amp;L</span>
+                {% set upl = item.unrealized_pl %}
+                {% set plr = item.pl_ratio if item.pl_ratio is not none else item.vs_cost_pct %}
+                <span
+                  class="mono {% if upl is not none %}{% if upl >= 0 %}up{% else %}down{% endif %}{% elif plr is not none %}{% if plr >= 0 %}up{% else %}down{% endif %}{% endif %}">
+                  {% if upl is not none %}{{ '%+.0f'|format(upl) }}{% else %}—{% endif %}
+                  {% if plr is not none %} · {{ '%+.1f'|format(plr) }}%{% endif %}
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <div class="pos-grid">
+            <div>
+              <div class="label">Qty</div>
+              <div class="mono">{% if item.qty is not none %}{{ item.qty }}{% else %}—{% endif %}</div>
+            </div>
+            <div>
+              <div class="label">Avg cost</div>
+              <div class="mono">{% if item.average_cost is not none %}{{ '%.3f'|format(item.average_cost) }}{% else %}—{% endif %}</div>
+            </div>
+            <div>
+              <div class="label">Market value</div>
+              <div class="mono">{% if item.market_val is not none %}{{ '%.2f'|format(item.market_val) }}{% else %}—{% endif %}</div>
+            </div>
+            <div>
+              <div class="label">Unrealized P&amp;L</div>
+              {% set upl = item.unrealized_pl %}
+              <div class="mono {% if upl is not none %}{% if upl >= 0 %}up{% else %}down{% endif %}{% endif %}">
+                {% if upl is not none %}{{ '%+.2f'|format(upl) }}{% else %}—{% endif %}
+                {% if item.pl_ratio is not none %} · {{ '%+.2f'|format(item.pl_ratio) }}%{% endif %}
+              </div>
+            </div>
+          </div>
+
+          {% set c = item.consensus %}
+          {% set m = item.consensus_month_ago %}
+          {% if c %}
+          <div class="target-consensus">
+            <div class="target-avg">
+              Target <strong>{% if c.average is not none %}{{ '%.2f'|format(c.average) }}{% else %}—{% endif %}</strong>
+              {% if item.upside_pct is not none %}
+              <span class="upside {% if item.upside_pct >= 0 %}up{% else %}down{% endif %}">
+                {{ '%+.1f'|format(item.upside_pct) }}%
+              </span>
+              {% endif %}
+            </div>
+            <div class="meta target-range">
+              Low {% if c.lowest is not none %}{{ '%.2f'|format(c.lowest) }}{% else %}—{% endif %}
+              · High {% if c.highest is not none %}{{ '%.2f'|format(c.highest) }}{% else %}—{% endif %}
+            </div>
+            <div class="meta">
+              1mo ago
+              {% if m and m.average is not none %}{{ '%.2f'|format(m.average) }}{% else %}—{% endif %}
+              {% if item.target_diff is not none %}
+              · <span class="{% if item.target_diff >= 0 %}up{% else %}down{% endif %}">
+                {{ '%+.2f'|format(item.target_diff) }}
+                {% if item.target_diff_pct is not none %} ({{ '%+.1f'|format(item.target_diff_pct) }}%){% endif %}
+              </span>
+              {% endif %}
+            </div>
+            <div class="meta">
+              {% if c.rating_label %}{{ c.rating_label }}{% else %}—{% endif %}
+              {% if c.total_analysts %} · {{ c.total_analysts }} analysts{% endif %}
+              {% if c.update_time_str %} · data {{ c.update_time_str }}{% endif %}
+            </div>
+            {% if item.fetched_at %}
+            <div class="meta">Fetched {{ item.fetched_at|format_updated_at }}</div>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="empty">No target cached. Refresh to fetch.</div>
+          {% endif %}
+
+          {% if item.institutions %}
+          <details class="inst-details">
+            <summary>{{ item.institutions|length }} institution{{ 's' if item.institutions|length != 1 else '' }}
+            </summary>
+            <ul class="inst-list">
+              {% for inst in item.institutions %}
+              <li>
+                <div class="inst-row">
+                  <span class="inst-name">{{ inst.institution_name or inst.institution_source_name or 'Institution'
+                    }}</span>
+                  <span class="inst-price">{% if inst.target_price is not none %}{{ '%.2f'|format(inst.target_price) }}{%
+                    else
+                    %}—{% endif %}</span>
+                </div>
+                <div class="meta">
+                  {{ inst.rating_label or '—' }}
+                  {% if inst.recommendation_date_str %} · {{ inst.recommendation_date_str }}{% endif %}
+                  {% if inst.rating_url %} · <a href="{{ inst.rating_url }}" target="_blank" rel="noopener">source</a>{%
+                  endif
+                  %}
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          </details>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% else %}
+    <div class="empty">No open stock positions.</div>
+    {% endfor %}
+  </div>
 </div>
 {% else %}
 <div class="empty">No open stock positions.</div>
