@@ -66,7 +66,6 @@
         <thead>
           <tr>
             <th data-sort="symbol">Symbol</th>
-            <th class="num" data-sort="weight">Wt%</th>
             <th class="num" data-sort="last">Last</th>
             <th class="num" data-sort="cost">Cost</th>
             <th class="num" data-sort="target">Target</th>
@@ -80,6 +79,8 @@
             <th class="num" data-sort="underperform" title="Underperform %">UP%</th>
             <th class="num" data-sort="sell" title="Sell %">Sell%</th>
             <th class="num" data-sort="analysts" title="Analysts">#</th>
+            <th class="num" data-sort="weight">Wt%</th>
+            <th class="num" data-sort="queried" title="Queried date">Queried</th>
           </tr>
         </thead>
         <tbody>
@@ -106,21 +107,29 @@
             data-underperform="{{ c.underperform if c and c.underperform is not none else '' }}"
             data-sell="{{ c.sell if c and c.sell is not none else '' }}"
             data-analysts="{{ c.total_analysts if c and c.total_analysts is not none else '' }}"
-            data-rating_rank="{{ c.rating if c and c.rating is not none else '' }}">
+            data-rating_rank="{{ c.rating if c and c.rating is not none else '' }}"
+            data-queried="{{ item.fetched_at.strftime('%Y%m%d%H%M%S') if item.fetched_at else '' }}">
             <td>
               <a href="/stock/{{ item.symbol }}">{{ item.symbol }}</a>
               <div class="meta">
                 {{ item.name }}{% if item.option_contracts %} · {{ item.option_contracts }} opt{% endif %}
               </div>
             </td>
-            <td class="num">{% if item.weight_pct is not none %}{{ '%.1f'|format(item.weight_pct) }}{% else %}—{% endif
-              %}</td>
             <td class="num {% if chg is not none %}{% if chg >= 0 %}up{% else %}down{% endif %}{% endif %}">
               {% if snap and snap.last_price is not none %}{{ '%.2f'|format(snap.last_price) }}{% else %}—{% endif %}
               {% if chg is not none %}<div class="meta">{{ '%+.1f'|format(chg) }}%</div>{% endif %}
             </td>
-            <td class="num">{% if item.average_cost is not none %}{{ '%.2f'|format(item.average_cost) }}{% else %}—{%
-              endif %}</td>
+            {% set vsc = item.vs_cost_pct %}
+            <td class="num cost-cell">
+              {% if item.average_cost is not none %}
+              <span
+                class="cost-tag {% if vsc is not none %}{% if vsc >= 0 %}cost-profit{% else %}cost-loss{% endif %}{% endif %}">
+                {{ '%.2f'|format(item.average_cost) }}
+              </span>
+              {% if vsc is not none %}<div class="meta {% if vsc >= 0 %}up{% else %}down{% endif %}">{{
+                '%+.1f'|format(vsc) }}%</div>{% endif %}
+              {% else %}—{% endif %}
+            </td>
             <td class="num">{% if c and c.average is not none %}{{ '%.2f'|format(c.average) }}{% else %}—{% endif %}
             </td>
             <td class="num">{% if m and m.average is not none %}{{ '%.2f'|format(m.average) }}{% else %}—{% endif %}
@@ -134,9 +143,12 @@
               {% if item.upside_pct is not none %}{{ '%+.1f'|format(item.upside_pct) }}{% else %}—{% endif %}
             </td>
             <td class="rating-cell" title="{{ rating or '' }}">
-              {% if rating == 'Strong Buy' %}SB
-              {% elif rating == 'Underperform' %}UP
-              {% elif rating %}{{ rating }}
+              {% if rating == 'Strong Buy' %}<span class="rating-tag rating-sb">SB</span>
+              {% elif rating == 'Buy' %}<span class="rating-tag rating-buy">Buy</span>
+              {% elif rating == 'Hold' %}<span class="rating-tag rating-hold">Hold</span>
+              {% elif rating == 'Underperform' %}<span class="rating-tag rating-up">UP</span>
+              {% elif rating == 'Sell' %}<span class="rating-tag rating-sell">Sell</span>
+              {% elif rating %}<span class="rating-tag">{{ rating }}</span>
               {% else %}—{% endif %}
             </td>
             <td class="num pct-sb">{% if c and c.strong_buy is not none %}{{ '%.0f'|format(c.strong_buy) }}{% else %}—{%
@@ -150,6 +162,10 @@
             <td class="num pct-sell">{% if c and c.sell is not none %}{{ '%.0f'|format(c.sell) }}{% else %}—{% endif %}
             </td>
             <td class="num">{% if c and c.total_analysts is not none %}{{ c.total_analysts }}{% else %}—{% endif %}</td>
+            <td class="num">{% if item.weight_pct is not none %}{{ '%.1f'|format(item.weight_pct) }}{% else %}—{% endif
+              %}</td>
+            <td class="num">{% if item.fetched_at %}{{ item.fetched_at.strftime('%d-%m-%y') }}{% else %}—{% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -186,12 +202,20 @@
 
           {% set snap = item.snapshot %}
           {% set chg = snap.change_rate if snap else none %}
+          {% set vsc = item.vs_cost_pct %}
           <div class="pos-pricing">
             <div class="pos-price-line">
               <span class="pos-pair">
                 <span class="label">Cost</span>
-                <span class="mono">{% if item.average_cost is not none %}{{ '%.2f'|format(item.average_cost) }}{% else
-                  %}—{% endif %}</span>
+                {% if item.average_cost is not none %}
+                <span
+                  class="cost-tag {% if vsc is not none %}{% if vsc >= 0 %}cost-profit{% else %}cost-loss{% endif %}{% endif %}">
+                  {{ '%.2f'|format(item.average_cost) }}
+                  {% if vsc is not none %} <span class="cost-vs">{{ '%+.1f'|format(vsc) }}%</span>{% endif %}
+                </span>
+                {% else %}
+                <span class="mono">—</span>
+                {% endif %}
               </span>
               <span class="pos-pair">
                 <span class="label">Last</span>
@@ -274,7 +298,13 @@
               {% endif %}
             </div>
             <div class="meta">
-              {% if c.rating_label %}{{ c.rating_label }}{% else %}—{% endif %}
+              {% if c.rating_label == 'Strong Buy' %}<span class="rating-tag rating-sb">SB</span>
+              {% elif c.rating_label == 'Buy' %}<span class="rating-tag rating-buy">Buy</span>
+              {% elif c.rating_label == 'Hold' %}<span class="rating-tag rating-hold">Hold</span>
+              {% elif c.rating_label == 'Underperform' %}<span class="rating-tag rating-up">UP</span>
+              {% elif c.rating_label == 'Sell' %}<span class="rating-tag rating-sell">Sell</span>
+              {% elif c.rating_label %}<span class="rating-tag">{{ c.rating_label }}</span>
+              {% else %}—{% endif %}
               {% if c.total_analysts %} · {{ c.total_analysts }} analysts{% endif %}
               {% if c.update_time_str %} · data {{ c.update_time_str }}{% endif %}
             </div>

@@ -1047,9 +1047,100 @@ button.chip.active {
 
 .targets-table-compact .rating-cell {
   font-size: 0.72rem;
-  max-width: 5.5rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cost-tag {
+  display: inline-block;
+  padding: 0.08rem 0.4rem;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+  vertical-align: middle;
+  border: 1px solid transparent;
+  background: rgba(92, 87, 78, 0.1);
+  color: var(--muted);
+  border-color: rgba(92, 87, 78, 0.28);
+}
+
+.cost-tag.cost-profit {
+  background: rgba(11, 95, 75, 0.14);
+  color: #0b5f4b;
+  border-color: rgba(11, 95, 75, 0.4);
+}
+
+.cost-tag.cost-loss {
+  background: rgba(139, 46, 46, 0.12);
+  color: #8b2e2e;
+  border-color: rgba(139, 46, 46, 0.4);
+}
+
+.cost-tag .cost-vs {
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.targets-table-compact .cost-cell .meta.up {
+  color: var(--up);
+}
+
+.targets-table-compact .cost-cell .meta.down {
+  color: var(--down);
+}
+
+.orders-table td.up,
+.target-card .up {
+  color: var(--up);
+}
+
+.orders-table td.down,
+.target-card .down {
+  color: var(--down);
+}
+
+.rating-tag {
+  display: inline-block;
+  padding: 0.08rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  vertical-align: middle;
+  border: 1px solid transparent;
+}
+
+.rating-tag.rating-sb {
+  background: #0b5f4b;
+  color: #f4fff9;
+  border-color: #0b5f4b;
+}
+
+.rating-tag.rating-buy {
+  background: rgba(31, 122, 92, 0.16);
+  color: #145a42;
+  border-color: rgba(31, 122, 92, 0.45);
+}
+
+.rating-tag.rating-hold {
+  background: rgba(92, 87, 78, 0.12);
+  color: #5c574e;
+  border-color: rgba(92, 87, 78, 0.35);
+}
+
+.rating-tag.rating-up {
+  background: rgba(176, 122, 16, 0.16);
+  color: #8a5a0a;
+  border-color: rgba(176, 122, 16, 0.45);
+}
+
+.rating-tag.rating-sell {
+  background: rgba(139, 46, 46, 0.14);
+  color: #8b2e2e;
+  border-color: rgba(139, 46, 46, 0.4);
 }
 
 .targets-table-compact .pct-sb {
