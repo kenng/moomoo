@@ -1,14 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ stock.name }} — Momo MY News{% endblock %}
 {% block content %}
-<a class="back" href="/">← Watchlist</a>
+<a class="back" href="/stock-news">← Momo News</a>
 <header>
   <div>
     <div class="brand">{{ stock.name }}</div>
     <div class="sub">{{ stock.symbol }}</div>
   </div>
   <div class="actions">
-    <a class="btn secondary" href="/stock-news">Stock News</a>
+    <a class="btn secondary" href="/">Price Targets</a>
+    <a class="btn secondary" href="/holdings-news">Holdings News</a>
     <a class="btn secondary" href="/orders">Orders</a>
     <a class="btn secondary" href="/dividends">Dividends</a>
     <form method="post" action="/refresh/{{ stock.symbol }}">

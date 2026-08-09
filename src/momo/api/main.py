@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
+import markdown as markdown_lib
 from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 from momo.adapters.google_sheets import GoogleSheetsError
 from momo.config import bare_code, get_settings
@@ -18,9 +21,39 @@ from momo.services import (
     dividend_history,
     news_digest,
     order_history,
+    price_targets,
     sheets_sync,
 )
 from momo.watchlist import load_watchlist, resolve_stock
+
+_MD_EXTENSIONS = ["sane_lists", "nl2br", "fenced_code", "tables"]
+_UNSAFE_HTML_RE = re.compile(
+    r"</?(script|style|iframe|object|embed|link|meta|base)[^>]*>",
+    re.IGNORECASE,
+)
+_MD_H3_RE = re.compile(r"<h3>(.*?)</h3>", re.IGNORECASE | re.DOTALL)
+_MD_TONE_MARKERS = (
+    ("🟢", "tone-green"),
+    ("🟡", "tone-yellow"),
+    ("🔴", "tone-red"),
+)
+
+
+def _tone_class_for_heading(inner_html: str) -> str:
+    for marker, tone in _MD_TONE_MARKERS:
+        if marker in inner_html:
+            return tone
+    return ""
+
+
+def _style_markdown_headings(html: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        inner = match.group(1)
+        tone = _tone_class_for_heading(inner)
+        cls = f' class="ai-summary-section {tone}"' if tone else ""
+        return f"<h3{cls}>{inner}</h3>"
+
+    return _MD_H3_RE.sub(repl, html)
 
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
 _STOCK_NEWS_MARKET_ORDER = ("HK", "US", "MY")
@@ -126,22 +159,33 @@ def format_updated_at(value: datetime | str | None) -> str:
     return dt.strftime("%d-%b-%Y %H:%M")
 
 
+def render_markdown(value: str | None) -> Markup:
+    """Render AI summary markdown to HTML for templates."""
+    text = (value or "").strip()
+    if not text:
+        return Markup("")
+    html = markdown_lib.markdown(text, extensions=_MD_EXTENSIONS)
+    html = _UNSAFE_HTML_RE.sub("", html)
+    html = _style_markdown_headings(html)
+    return Markup(html)
+
+
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.filters["format_publish_time"] = format_publish_time
 templates.env.filters["format_updated_at"] = format_updated_at
+templates.env.filters["markdown"] = render_markdown
 
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request, source: str = "all"):
-    source = news_digest.normalize_news_provider(source)
-    digests = news_digest.get_watchlist_digest(provider=source)
+def home(request: Request):
+    """Home: institutional / consensus price targets for the watchlist."""
+    data = price_targets.get_watchlist_price_targets()
     return templates.TemplateResponse(
         request,
         "index.html",
         {
-            "digests": digests,
-            "source": source,
-            "settings": get_settings(),
+            "items": data["items"],
+            "last_updated": data.get("last_updated"),
             "error": None,
         },
     )
@@ -269,7 +313,24 @@ def orders_stocks_page(
 
 
 @app.get("/stock-news", response_class=HTMLResponse)
-def stock_news_page(
+def stock_news_page(request: Request, source: str = "all"):
+    """Momo News: watchlist news digests (formerly the home page)."""
+    source = news_digest.normalize_news_provider(source)
+    digests = news_digest.get_watchlist_digest(provider=source)
+    return templates.TemplateResponse(
+        request,
+        "momo_news.html",
+        {
+            "digests": digests,
+            "source": source,
+            "settings": get_settings(),
+            "error": None,
+        },
+    )
+
+
+@app.get("/holdings-news", response_class=HTMLResponse)
+def holdings_news_page(
     request: Request,
     acc_id: int | None = None,
     trd_env: str | None = None,
@@ -297,7 +358,7 @@ def stock_news_page(
             stock["ai_summary"] = summaries.get(stock["symbol"])
     return templates.TemplateResponse(
         request,
-        "stock_news.html",
+        "holdings_news.html",
         {
             "trd_env": data.get("trd_env"),
             "accounts": data.get("accounts") or [],
@@ -425,7 +486,25 @@ def refresh_all():
     try:
         news_digest.refresh_watchlist()
     except OpenDError as exc:
-        return RedirectResponse(url=f"/?error={exc}", status_code=303)
+        return RedirectResponse(
+            url=f"/stock-news?error={quote(str(exc))}", status_code=303
+        )
+    return RedirectResponse(url="/stock-news", status_code=303)
+
+
+@app.post("/refresh-targets")
+def refresh_targets():
+    try:
+        result = price_targets.refresh_watchlist_targets()
+    except OpenDError as exc:
+        return RedirectResponse(
+            url=f"/?error={quote(str(exc))}", status_code=303
+        )
+    if result.get("errors"):
+        msg = "; ".join(result["errors"][:3])
+        return RedirectResponse(
+            url=f"/?error={quote(msg)}", status_code=303
+        )
     return RedirectResponse(url="/", status_code=303)
 
 

@@ -1,17 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Watchlist — Momo MY News{% endblock %}
+{% block title %}Price Targets — Momo{% endblock %}
 {% block content %}
 <header>
   <div>
-    <div class="brand">Momo Stock News</div>
-    <div class="sub">Important news for your Stock watchlist (cached locally)</div>
+    <div class="brand">Price Targets</div>
+    <div class="sub">Institution / analyst targets from OpenD · cached locally{% if last_updated %} · last updated {{
+      last_updated|format_updated_at }}{% endif %}</div>
   </div>
   <div class="actions">
-    <a class="btn secondary" href="/stock-news">Stock News</a>
+    <a class="btn secondary" href="/stock-news">Momo News</a>
+    <a class="btn secondary" href="/holdings-news">Holdings News</a>
     <a class="btn secondary" href="/orders">Orders</a>
     <a class="btn secondary" href="/dividends">Dividends</a>
-    <form method="post" action="/refresh">
-      <button type="submit">Refresh News</button>
+    <form method="post" action="/refresh-targets">
+      <button type="submit">Refresh Targets</button>
     </form>
   </div>
 </header>
@@ -20,105 +22,73 @@
 <div class="error">{{ request.query_params.get('error') }}</div>
 {% endif %}
 
-<nav class="source-tabs" aria-label="News source">
-  <a class="{% if source == 'all' %}active{% endif %}" href="/?source=all">All</a>
-  <a class="{% if source == 'opend' %}active{% endif %}" href="/?source=opend">OpenD</a>
-  <a class="{% if source == 'finnhub' %}active{% endif %}" href="/?source=finnhub">Finnhub</a>
-</nav>
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
 
 <section class="grid">
-  {% for item in digests %}
-  <article class="card">
-    <h2><a href="/stock/{{ item.symbol }}?source={{ source }}">{{ item.name }}</a></h2>
+  {% for item in items %}
+  <article class="card target-card">
+    <h2><a href="/stock/{{ item.symbol }}">{{ item.name }}</a></h2>
     <div class="meta">{{ item.symbol }}</div>
     {% set snap = item.snapshot %}
     {% if snap %}
     {% set chg = snap.change_rate or 0 %}
     <div class="price {% if chg >= 0 %}up{% else %}down{% endif %}">
-      {{ snap.last_price }} · {{ '%.2f'|format(chg) }}%
-    </div>
-    {% else %}
-    <div class="empty">No snapshot yet</div>
-    {% endif %}
-    {% if item.ai_summary %}
-    <div class="ai-summary">
-      <details class="ai-summary-details">
-        <summary>
-          <span class="ai-summary-meta">AI summary{% if item.ai_summary.updated_at %} · {{
-            item.ai_summary.updated_at|format_updated_at }}{% endif %}</span>
-          {% if item.ai_summary.section_headers %}
-          <ul class="ai-summary-sections">
-            {% for h in item.ai_summary.section_headers %}
-            <li class="ai-summary-section tone-{{ h.tone }}">{{ h.line }}</li>
-            {% endfor %}
-          </ul>
-          {% else %}
-          <p class="ai-summary-preview">{{ item.ai_summary.preview }}</p>
-          {% endif %}
-        </summary>
-        <pre class="ai-summary-full">{{ item.ai_summary.summary }}</pre>
-      </details>
-      <form method="post" action="/ai-summary/{{ item.symbol }}" class="inline-form ai-summary-actions">
-        <input type="hidden" name="force" value="1">
-        <input type="hidden" name="next" value="/?source={{ source }}">
-        <button type="submit" class="secondary">Re-summarise</button>
-      </form>
+      Last {{ snap.last_price }} · {{ '%.2f'|format(chg) }}%
     </div>
     {% endif %}
-    <ul class="news-list" data-page-size="3">
-      {% for n in item.news %}
-      <li class="news-item" {% if loop.index0>= 3 %} hidden{% endif %}>
-        <span class="score">{{ n.importance_score }}</span>
-        {% if n.url %}<a class="news-title" href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else
-        %}<span class="news-title">{{ n.title }}</span>{% endif %}
-        <div class="meta">
-          <span class="provider-tag">{{ n.provider|default('opend') }}</span>
-          · {{ n.news_sub_type }} · {{ n.publish_time|format_publish_time }} · {{ n.source }}
-        </div>
-      </li>
-      {% else %}
-      <li class="empty">No cached {% if source == 'all' %}news{% else %}{{ source }} news{% endif %}. Refresh to fetch.
-      </li>
-      {% endfor %}
-    </ul>
-    {% if item.news|length > 3 %}
-    <nav class="news-pager" aria-label="News pages">
-      <button type="button" class="pager-btn" data-dir="-1" disabled aria-label="Previous news">&lt;</button>
-      <button type="button" class="pager-btn" data-dir="1" aria-label="Next news">&gt;</button>
-    </nav>
+
+    {% set c = item.consensus %}
+    {% if c %}
+    <div class="target-consensus">
+      <div class="target-avg">
+        Avg <strong>{% if c.average is not none %}{{ '%.2f'|format(c.average) }}{% else %}—{% endif %}</strong>
+      </div>
+      <div class="meta target-range">
+        Low {% if c.lowest is not none %}{{ '%.2f'|format(c.lowest) }}{% else %}—{% endif %}
+        · High {% if c.highest is not none %}{{ '%.2f'|format(c.highest) }}{% else %}—{% endif %}
+      </div>
+      <div class="meta">
+        {% if c.rating_label %}{{ c.rating_label }}{% else %}—{% endif %}
+        {% if c.total_analysts %} · {{ c.total_analysts }} analysts{% endif %}
+        {% if c.update_time_str %} · data {{ c.update_time_str }}{% endif %}
+      </div>
+      {% if item.fetched_at %}
+      <div class="meta">Fetched {{ item.fetched_at|format_updated_at }}</div>
+      {% endif %}
+    </div>
     {% else %}
-    <div class="news-pager" aria-hidden="true"></div>
+    <div class="empty">No target cached. Refresh to fetch.</div>
+    {% endif %}
+
+    {% if item.institutions %}
+    <details class="inst-details">
+      <summary>{{ item.institutions|length }} institution{{ 's' if item.institutions|length != 1 else '' }}</summary>
+      <ul class="inst-list">
+        {% for inst in item.institutions %}
+        <li>
+          <div class="inst-row">
+            <span class="inst-name">{{ inst.institution_name or inst.institution_source_name or 'Institution' }}</span>
+            <span class="inst-price">{% if inst.target_price is not none %}{{ '%.2f'|format(inst.target_price) }}{% else
+              %}—{% endif %}</span>
+          </div>
+          <div class="meta">
+            {{ inst.rating_label or '—' }}
+            {% if inst.recommendation_date_str %} · {{ inst.recommendation_date_str }}{% endif %}
+            {% if inst.rating_url %} · <a href="{{ inst.rating_url }}" target="_blank" rel="noopener">source</a>{% endif
+            %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% elif item.market and item.market != 'US' %}
+    <div class="meta inst-note">Institution list is US-only on OpenD; consensus above still applies.</div>
     {% endif %}
   </article>
+  {% else %}
+  <div class="empty">Watchlist is empty.</div>
   {% endfor %}
 </section>
-<script>
-  document.querySelectorAll(".card").forEach((card) => {
-    const list = card.querySelector(".news-list");
-    const pager = card.querySelector(".news-pager");
-    const [prev, next] = pager ? pager.querySelectorAll(".pager-btn") : [];
-    if (!list || !prev || !next) return;
-
-    const items = [...list.querySelectorAll(".news-item")];
-    const pageSize = Number(list.dataset.pageSize) || 3;
-    const pageCount = Math.ceil(items.length / pageSize);
-    let page = 0;
-
-    function render() {
-      items.forEach((item, i) => {
-        const start = page * pageSize;
-        item.hidden = i < start || i >= start + pageSize;
-      });
-      prev.disabled = page <= 0;
-      next.disabled = page >= pageCount - 1;
-    }
-
-    pager.addEventListener("click", (e) => {
-      const btn = e.target.closest(".pager-btn");
-      if (!btn || btn.disabled) return;
-      page = Math.max(0, Math.min(pageCount - 1, page + Number(btn.dataset.dir)));
-      render();
-    });
-  });
-</script>
 {% endblock %}

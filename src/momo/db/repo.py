@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 from momo.db.models import (
     CashFlowDay,
     DividendReceived,
+    InstitutionPriceTarget,
     NewsAiSummary,
     NewsItem,
+    PriceTargetConsensus,
     QuoteSnapshot,
 )
 from momo.domain.ranking import parse_publish_time
@@ -256,3 +258,130 @@ def list_dividends(
         DividendReceived.cashflow_id.desc(),
     )
     return list(session.scalars(stmt))
+
+
+def upsert_price_target_consensus(
+    session: Session, item: dict
+) -> PriceTargetConsensus:
+    now = datetime.utcnow()
+    existing = session.scalar(
+        select(PriceTargetConsensus).where(
+            PriceTargetConsensus.symbol == item["symbol"]
+        )
+    )
+    fields = (
+        "stock_code",
+        "stock_name",
+        "highest",
+        "average",
+        "lowest",
+        "rating",
+        "rating_label",
+        "total_analysts",
+        "update_time_str",
+        "buy",
+        "hold",
+        "sell",
+        "strong_buy",
+        "underperform",
+    )
+    if existing:
+        for key in fields:
+            if key in item:
+                setattr(existing, key, item[key])
+        existing.fetched_at = now
+        session.commit()
+        session.refresh(existing)
+        return existing
+    row = PriceTargetConsensus(
+        symbol=item["symbol"],
+        fetched_at=now,
+        **{k: item.get(k) for k in fields},
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def replace_institution_targets(
+    session: Session, *, symbol: str, items: list[dict]
+) -> int:
+    """Replace all institution targets for a symbol with a fresh fetch."""
+    now = datetime.utcnow()
+    existing = list(
+        session.scalars(
+            select(InstitutionPriceTarget).where(
+                InstitutionPriceTarget.symbol == symbol
+            )
+        )
+    )
+    for row in existing:
+        session.delete(row)
+    session.flush()
+    for item in items:
+        session.add(
+            InstitutionPriceTarget(
+                symbol=symbol,
+                stock_code=item.get("stock_code", ""),
+                stock_name=item.get("stock_name", ""),
+                institution_uid=item["institution_uid"],
+                institution_name=item.get("institution_name", ""),
+                institution_en_name=item.get("institution_en_name", ""),
+                institution_source_name=item.get("institution_source_name", ""),
+                rating=item.get("rating"),
+                rating_label=item.get("rating_label", ""),
+                target_price=item.get("target_price"),
+                recommendation_date_str=item.get("recommendation_date_str", ""),
+                rating_url=item.get("rating_url", ""),
+                update_time_str=item.get("update_time_str", ""),
+                fetched_at=now,
+            )
+        )
+    session.commit()
+    return len(items)
+
+
+def list_price_target_consensus_for_symbols(
+    session: Session, symbols: list[str]
+) -> dict[str, PriceTargetConsensus]:
+    if not symbols:
+        return {}
+    rows = session.scalars(
+        select(PriceTargetConsensus).where(PriceTargetConsensus.symbol.in_(symbols))
+    )
+    return {row.symbol: row for row in rows}
+
+
+def list_institution_targets_for_symbols(
+    session: Session, symbols: list[str]
+) -> dict[str, list[InstitutionPriceTarget]]:
+    if not symbols:
+        return {}
+    rows = session.scalars(
+        select(InstitutionPriceTarget)
+        .where(InstitutionPriceTarget.symbol.in_(symbols))
+        .order_by(
+            InstitutionPriceTarget.recommendation_date_str.desc(),
+            InstitutionPriceTarget.institution_name.asc(),
+        )
+    )
+    by_symbol: dict[str, list[InstitutionPriceTarget]] = {s: [] for s in symbols}
+    for row in rows:
+        by_symbol.setdefault(row.symbol, []).append(row)
+    return by_symbol
+
+
+def latest_price_target_fetched_at(
+    session: Session, symbols: list[str]
+) -> datetime | None:
+    """Most recent fetch across consensus rows for the given symbols."""
+    if not symbols:
+        return None
+    rows = session.scalars(
+        select(PriceTargetConsensus.fetched_at)
+        .where(PriceTargetConsensus.symbol.in_(symbols))
+        .order_by(PriceTargetConsensus.fetched_at.desc())
+        .limit(1)
+    )
+    return next(iter(rows), None)

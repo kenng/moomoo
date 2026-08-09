@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Momo News — Watchlist{% endblock %}
+{% block content %}
+<header>
+  <div>
+    <div class="brand">Momo News</div>
+    <div class="sub">Important news for your Stock watchlist (cached locally)</div>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/">Price Targets</a>
+    <a class="btn secondary" href="/holdings-news">Holdings News</a>
+    <a class="btn secondary" href="/orders">Orders</a>
+    <a class="btn secondary" href="/dividends">Dividends</a>
+    <form method="post" action="/refresh">
+      <button type="submit">Refresh News</button>
+    </form>
+  </div>
+</header>
+
+{% if request.query_params.get('error') %}
+<div class="error">{{ request.query_params.get('error') }}</div>
+{% endif %}
+
+<nav class="source-tabs" aria-label="News source">
+  <a class="{% if source == 'all' %}active{% endif %}" href="/stock-news?source=all">All</a>
+  <a class="{% if source == 'opend' %}active{% endif %}" href="/stock-news?source=opend">OpenD</a>
+  <a class="{% if source == 'finnhub' %}active{% endif %}" href="/stock-news?source=finnhub">Finnhub</a>
+</nav>
+
+<section class="grid">
+  {% for item in digests %}
+  <article class="card">
+    <h2><a href="/stock/{{ item.symbol }}?source={{ source }}">{{ item.name }}</a></h2>
+    <div class="meta">{{ item.symbol }}</div>
+    {% set snap = item.snapshot %}
+    {% if snap %}
+    {% set chg = snap.change_rate or 0 %}
+    <div class="price {% if chg >= 0 %}up{% else %}down{% endif %}">
+      {{ snap.last_price }} · {{ '%.2f'|format(chg) }}%
+    </div>
+    {% else %}
+    <div class="empty">No snapshot yet</div>
+    {% endif %}
+    {% if item.ai_summary %}
+    <div class="ai-summary">
+      <details class="ai-summary-details">
+        <summary>
+          <span class="ai-summary-meta">AI summary{% if item.ai_summary.updated_at %} · {{
+            item.ai_summary.updated_at|format_updated_at }}{% endif %}</span>
+          {% if item.ai_summary.section_headers %}
+          <ul class="ai-summary-sections">
+            {% for h in item.ai_summary.section_headers %}
+            <li class="ai-summary-section tone-{{ h.tone }}">{{ h.line }}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="ai-summary-preview">{{ item.ai_summary.preview }}</p>
+          {% endif %}
+        </summary>
+        <div class="ai-summary-full markdown-body">{{ item.ai_summary.summary|markdown }}</div>
+      </details>
+      <form method="post" action="/ai-summary/{{ item.symbol }}" class="inline-form ai-summary-actions">
+        <input type="hidden" name="force" value="1">
+        <input type="hidden" name="next" value="/stock-news?source={{ source }}">
+        <button type="submit" class="secondary">Re-summarise</button>
+      </form>
+    </div>
+    {% endif %}
+    <ul class="news-list" data-page-size="3">
+      {% for n in item.news %}
+      <li class="news-item" {% if loop.index0>= 3 %} hidden{% endif %}>
+        <span class="score">{{ n.importance_score }}</span>
+        {% if n.url %}<a class="news-title" href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else
+        %}<span class="news-title">{{ n.title }}</span>{% endif %}
+        <div class="meta">
+          <span class="provider-tag">{{ n.provider|default('opend') }}</span>
+          · {{ n.news_sub_type }} · {{ n.publish_time|format_publish_time }} · {{ n.source }}
+        </div>
+      </li>
+      {% else %}
+      <li class="empty">No cached {% if source == 'all' %}news{% else %}{{ source }} news{% endif %}. Refresh to fetch.
+      </li>
+      {% endfor %}
+    </ul>
+    {% if item.news|length > 3 %}
+    <nav class="news-pager" aria-label="News pages">
+      <button type="button" class="pager-btn" data-dir="-1" disabled aria-label="Previous news">&lt;</button>
+      <button type="button" class="pager-btn" data-dir="1" aria-label="Next news">&gt;</button>
+    </nav>
+    {% else %}
+    <div class="news-pager" aria-hidden="true"></div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+<script>
+  document.querySelectorAll(".card").forEach((card) => {
+    const list = card.querySelector(".news-list");
+    const pager = card.querySelector(".news-pager");
+    const [prev, next] = pager ? pager.querySelectorAll(".pager-btn") : [];
+    if (!list || !prev || !next) return;
+
+    const items = [...list.querySelectorAll(".news-item")];
+    const pageSize = Number(list.dataset.pageSize) || 3;
+    const pageCount = Math.ceil(items.length / pageSize);
+    let page = 0;
+
+    function render() {
+      items.forEach((item, i) => {
+        const start = page * pageSize;
+        item.hidden = i < start || i >= start + pageSize;
+      });
+      prev.disabled = page <= 0;
+      next.disabled = page >= pageCount - 1;
+    }
+
+    pager.addEventListener("click", (e) => {
+      const btn = e.target.closest(".pager-btn");
+      if (!btn || btn.disabled) return;
+      page = Math.max(0, Math.min(pageCount - 1, page + Number(btn.dataset.dir)));
+      render();
+    });
+  });
+</script>
+{% endblock %}

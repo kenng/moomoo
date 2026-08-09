@@ -14,9 +14,10 @@
       {% if show_all %}all collected{% else %}{{ start }} → {{ end }}{% endif %}</div>
   </div>
   <div class="actions">
-    <a class="btn secondary" href="/">Watchlist</a>
+    <a class="btn secondary" href="/">Price Targets</a>
+    <a class="btn secondary" href="/stock-news">Momo News</a>
     <a class="btn secondary"
-      href="/stock-news?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Stock
+      href="/holdings-news?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Holdings
       News</a>
     <a class="btn secondary"
       href="/orders?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Orders</a>

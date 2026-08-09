@@ -99,3 +99,54 @@ class DividendReceived(Base):
     stock_name: Mapped[str] = mapped_column(String(128), default="")
     shares: Mapped[float | None] = mapped_column(Float, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PriceTargetConsensus(Base):
+    """Cached OpenD analyst consensus target price for a symbol."""
+
+    __tablename__ = "price_target_consensus"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    stock_code: Mapped[str] = mapped_column(String(16), index=True)
+    stock_name: Mapped[str] = mapped_column(String(128), default="")
+    highest: Mapped[float | None] = mapped_column(Float, nullable=True)
+    average: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lowest: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_label: Mapped[str] = mapped_column(String(32), default="")
+    total_analysts: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    update_time_str: Mapped[str] = mapped_column(String(32), default="")
+    buy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sell: Mapped[float | None] = mapped_column(Float, nullable=True)
+    strong_buy: Mapped[float | None] = mapped_column(Float, nullable=True)
+    underperform: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class InstitutionPriceTarget(Base):
+    """Cached per-institution target price (OpenD research rating summary)."""
+
+    __tablename__ = "institution_price_targets"
+    __table_args__ = (
+        UniqueConstraint(
+            "symbol", "institution_uid", name="uq_inst_target_symbol_uid"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    stock_code: Mapped[str] = mapped_column(String(16), index=True)
+    stock_name: Mapped[str] = mapped_column(String(128), default="")
+    institution_uid: Mapped[str] = mapped_column(String(64), index=True)
+    institution_name: Mapped[str] = mapped_column(String(128), default="")
+    institution_en_name: Mapped[str] = mapped_column(String(128), default="")
+    institution_source_name: Mapped[str] = mapped_column(String(128), default="")
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating_label: Mapped[str] = mapped_column(String(32), default="")
+    target_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    recommendation_date_str: Mapped[str] = mapped_column(String(32), default="")
+    rating_url: Mapped[str] = mapped_column(Text, default="")
+    update_time_str: Mapped[str] = mapped_column(String(32), default="")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
