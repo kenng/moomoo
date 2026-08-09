@@ -17,7 +17,7 @@ from momo.db.repo import (
     upsert_price_target_consensus,
 )
 from momo.db.session import get_session
-from momo.domain.options import is_option_code
+from momo.domain.options import parse_option_code
 from momo.opend_client import OpenDError
 from momo.watchlist import load_watchlist
 
@@ -30,6 +30,8 @@ _WEIGHT_BANDS: list[tuple[float, float | None, str]] = [
     (5.0, 10.0, "5–10% of portfolio"),
     (0.0, 5.0, "Under 5% of portfolio"),
 ]
+_OPTIONS_ONLY_BAND = "Options only"
+_WATCHLIST_BAND = "Watchlist"
 
 
 def _row_to_dict(row) -> dict:
@@ -69,83 +71,146 @@ def _inst_to_dict(row) -> dict:
     }
 
 
+def _empty_position_row(
+    *,
+    symbol: str,
+    code: str,
+    name: str,
+    market: str,
+) -> dict:
+    return {
+        "symbol": symbol,
+        "code": code,
+        "name": name,
+        "market": market,
+        "qty": None,
+        "market_val": None,
+        "average_cost": None,
+        "nominal_price": None,
+        "unrealized_pl": None,
+        "pl_ratio": None,
+        "option_contracts": 0,
+        "_cost_sum": 0.0,
+    }
+
+
+def _merge_stock_position(by_symbol: dict[str, dict], pos: dict) -> None:
+    symbol = (pos.get("code") or "").strip().upper()
+    if not symbol:
+        return
+    qty = pos.get("qty") or 0.0
+    if not qty:
+        return
+    market = symbol.split(".", 1)[0] if "." in symbol else ""
+    code = bare_code(symbol)
+    market_val = pos.get("market_val")
+    if market_val is None:
+        last = pos.get("nominal_price")
+        if last is not None:
+            market_val = last * qty
+    avg_cost = pos.get("average_cost")
+    unrealized = pos.get("unrealized_pl")
+    existing = by_symbol.get(symbol)
+    if existing:
+        prev_qty = existing["qty"] or 0.0
+        existing["qty"] = prev_qty + qty
+        if market_val is not None:
+            existing["market_val"] = (existing["market_val"] or 0.0) + market_val
+        if unrealized is not None:
+            existing["unrealized_pl"] = (existing["unrealized_pl"] or 0.0) + unrealized
+        if avg_cost is not None and qty:
+            cost_sum = (existing.get("_cost_sum") or 0.0) + (avg_cost * qty)
+            existing["_cost_sum"] = cost_sum
+            if existing["qty"]:
+                existing["average_cost"] = cost_sum / existing["qty"]
+        elif existing.get("average_cost") is None and avg_cost is not None:
+            existing["average_cost"] = avg_cost
+        if pos.get("nominal_price") is not None:
+            existing["nominal_price"] = pos["nominal_price"]
+        # Prefer stock display name over option-root placeholder.
+        if pos.get("name") and (not existing.get("name") or prev_qty == 0):
+            existing["name"] = pos["name"]
+        # Keep pl_ratio coherent after merges.
+        if (
+            existing.get("unrealized_pl") is not None
+            and existing.get("average_cost") not in (None, 0)
+            and existing["qty"]
+        ):
+            basis = abs(existing["average_cost"] * existing["qty"])
+            if basis:
+                existing["pl_ratio"] = (existing["unrealized_pl"] / basis) * 100.0
+        elif prev_qty == 0:
+            existing["pl_ratio"] = pos.get("pl_ratio_avg_cost")
+        return
+    by_symbol[symbol] = {
+        "symbol": symbol,
+        "code": code,
+        "name": pos.get("name") or code,
+        "market": market,
+        "qty": qty,
+        "market_val": market_val,
+        "average_cost": avg_cost,
+        "nominal_price": pos.get("nominal_price"),
+        "unrealized_pl": unrealized,
+        "pl_ratio": pos.get("pl_ratio_avg_cost"),
+        "option_contracts": 0,
+        "_cost_sum": (avg_cost * qty) if avg_cost is not None and qty else 0.0,
+    }
+
+
+def _merge_option_underlying(by_symbol: dict[str, dict], pos: dict) -> None:
+    """Map an open option contract onto its underlying ticker for price targets."""
+    raw = (pos.get("code") or "").strip().upper()
+    info = parse_option_code(raw)
+    if info is None:
+        return
+    qty = pos.get("qty") or 0.0
+    if not qty:
+        return
+    symbol = info.underlying_symbol
+    existing = by_symbol.get(symbol)
+    if existing:
+        existing["option_contracts"] = (existing.get("option_contracts") or 0) + 1
+        return
+    code = bare_code(symbol)
+    by_symbol[symbol] = _empty_position_row(
+        symbol=symbol,
+        code=code,
+        name=info.underlying_root or code,
+        market=info.market,
+    )
+    by_symbol[symbol]["option_contracts"] = 1
+
+
+def aggregate_positions_for_targets(positions: list[dict]) -> list[dict]:
+    """Aggregate stock positions + option underlyings into target rows."""
+    by_symbol: dict[str, dict] = {}
+    for pos in positions:
+        symbol = (pos.get("code") or "").strip().upper()
+        if not symbol:
+            continue
+        if parse_option_code(symbol) is not None:
+            _merge_option_underlying(by_symbol, pos)
+        else:
+            _merge_stock_position(by_symbol, pos)
+    rows = []
+    for row in by_symbol.values():
+        row.pop("_cost_sum", None)
+        rows.append(row)
+    return rows
+
+
 def _stock_positions_from_opend(
     *,
     acc_id: int | None = None,
     trd_env: str | None = None,
 ) -> tuple[list[dict], dict]:
-    """Open stock/ETF positions aggregated by symbol (options excluded)."""
+    """Open stock/ETF + option-underlying tickers aggregated by symbol."""
     settings = get_settings()
     if acc_id is None and settings.trd_acc_id:
         acc_id = settings.trd_acc_id
     snap = orders_adapter.fetch_positions(acc_id=acc_id, trd_env=trd_env)
-    by_symbol: dict[str, dict] = {}
-    for pos in snap.get("positions") or []:
-        symbol = (pos.get("code") or "").strip().upper()
-        if not symbol or is_option_code(symbol):
-            continue
-        qty = pos.get("qty") or 0.0
-        if not qty:
-            continue
-        market = symbol.split(".", 1)[0] if "." in symbol else ""
-        code = bare_code(symbol)
-        market_val = pos.get("market_val")
-        if market_val is None:
-            last = pos.get("nominal_price")
-            if last is not None:
-                market_val = last * qty
-        avg_cost = pos.get("average_cost")
-        unrealized = pos.get("unrealized_pl")
-        existing = by_symbol.get(symbol)
-        if existing:
-            prev_qty = existing["qty"]
-            existing["qty"] += qty
-            if market_val is not None:
-                existing["market_val"] = (existing["market_val"] or 0.0) + market_val
-            if unrealized is not None:
-                existing["unrealized_pl"] = (
-                    (existing["unrealized_pl"] or 0.0) + unrealized
-                )
-            if avg_cost is not None and qty:
-                cost_sum = (existing.get("_cost_sum") or 0.0) + (avg_cost * qty)
-                existing["_cost_sum"] = cost_sum
-                if existing["qty"]:
-                    existing["average_cost"] = cost_sum / existing["qty"]
-            elif existing.get("average_cost") is None and avg_cost is not None:
-                existing["average_cost"] = avg_cost
-            if pos.get("nominal_price") is not None:
-                existing["nominal_price"] = pos["nominal_price"]
-            if not existing.get("name") and pos.get("name"):
-                existing["name"] = pos["name"]
-            # Keep pl_ratio coherent after merges.
-            if (
-                existing.get("unrealized_pl") is not None
-                and existing.get("average_cost") not in (None, 0)
-                and existing["qty"]
-            ):
-                basis = abs(existing["average_cost"] * existing["qty"])
-                if basis:
-                    existing["pl_ratio"] = (existing["unrealized_pl"] / basis) * 100.0
-            elif prev_qty == 0:
-                existing["pl_ratio"] = pos.get("pl_ratio_avg_cost")
-            continue
-        by_symbol[symbol] = {
-            "symbol": symbol,
-            "code": code,
-            "name": pos.get("name") or code,
-            "market": market,
-            "qty": qty,
-            "market_val": market_val,
-            "average_cost": avg_cost,
-            "nominal_price": pos.get("nominal_price"),
-            "unrealized_pl": unrealized,
-            "pl_ratio": pos.get("pl_ratio_avg_cost"),
-            "_cost_sum": (avg_cost * qty) if avg_cost is not None and qty else 0.0,
-        }
-    rows = []
-    for row in by_symbol.values():
-        row.pop("_cost_sum", None)
-        rows.append(row)
+    rows = aggregate_positions_for_targets(snap.get("positions") or [])
     meta = {
         "trd_env": snap.get("trd_env"),
         "selected_acc_id": snap.get("selected_acc_id"),
@@ -171,7 +236,7 @@ def _stocks_for_targets(
         meta_err = {
             **meta,
             "source": "watchlist",
-            "error": "No open stock positions; showing watchlist.",
+            "error": "No open stock or option positions; showing watchlist.",
         }
 
     stocks = []
@@ -189,14 +254,17 @@ def _stocks_for_targets(
                 "nominal_price": None,
                 "unrealized_pl": None,
                 "pl_ratio": None,
+                "option_contracts": 0,
             }
         )
     return stocks, meta_err
 
 
-def _weight_band(weight_pct: float | None) -> str:
+def _weight_band(
+    weight_pct: float | None, *, option_only: bool = False
+) -> str:
     if weight_pct is None:
-        return "Watchlist"
+        return _OPTIONS_ONLY_BAND if option_only else _WATCHLIST_BAND
     for low, high, label in _WEIGHT_BANDS:
         if weight_pct >= low and (high is None or weight_pct < high):
             return label
@@ -217,16 +285,25 @@ def _attach_weights(stocks: list[dict]) -> list[dict]:
             row["weight_pct"] = (mv / total) * 100.0
         else:
             row["weight_pct"] = None
-        row["weight_band"] = _weight_band(row["weight_pct"])
+        option_only = (
+            not (row.get("qty") or 0)
+            and (row.get("option_contracts") or 0) > 0
+        )
+        row["weight_band"] = _weight_band(
+            row["weight_pct"], option_only=option_only
+        )
         out.append(row)
     return out
 
 
 def _group_by_weight(items: list[dict]) -> list[dict]:
-    order = [label for _, _, label in _WEIGHT_BANDS] + ["Watchlist"]
+    order = (
+        [label for _, _, label in _WEIGHT_BANDS]
+        + [_OPTIONS_ONLY_BAND, _WATCHLIST_BAND]
+    )
     buckets: dict[str, list[dict]] = {label: [] for label in order}
     for item in items:
-        band = item.get("weight_band") or "Watchlist"
+        band = item.get("weight_band") or _WATCHLIST_BAND
         buckets.setdefault(band, []).append(item)
 
     groups = []
@@ -387,6 +464,7 @@ def get_watchlist_price_targets(
                     "average_cost": cost,
                     "unrealized_pl": stock.get("unrealized_pl"),
                     "pl_ratio": stock.get("pl_ratio"),
+                    "option_contracts": stock.get("option_contracts") or 0,
                     "weight_pct": stock.get("weight_pct"),
                     "weight_band": stock.get("weight_band"),
                     "snapshot": (
