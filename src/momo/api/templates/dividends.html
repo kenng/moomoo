@@ -1,41 +1,79 @@
 {% extends "base.html" %}
 {% block title %}Dividends — Momo{% endblock %}
+{% block head %}
+{% if auto_sync %}
+<meta http-equiv="refresh"
+  content="32;url=/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=1{% if show_all %}&all=1{% endif %}" />
+{% endif %}
+{% endblock %}
 {% block content %}
 <header>
   <div>
     <div class="brand">Dividends Received</div>
-    <div class="sub">Cash dividends from account cash flow · {{ trd_env }} · {{ start }} → {{ end }}</div>
+    <div class="sub">Cash dividends from account cash flow · {{ trd_env }} ·
+      {% if show_all %}all collected{% else %}{{ start }} → {{ end }}{% endif %}</div>
   </div>
   <div class="actions">
     <a class="btn secondary" href="/">Watchlist</a>
     <a class="btn secondary"
       href="/orders?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Orders</a>
     <a class="btn"
-      href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=1">Sync
+      href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=1{% if show_all %}&all=1{% endif %}">Sync
       more</a>
   </div>
 </header>
 
 <nav class="nav-tabs" aria-label="Trading environment">
   <a class="{% if trd_env == 'REAL' %}active{% endif %}"
-    href="/dividends?trd_env=REAL&start={{ start }}&end={{ end }}">Live</a>
+    href="/dividends?trd_env=REAL&start={{ start }}&end={{ end }}{% if show_all %}&all=1{% endif %}">Live</a>
   <a class="{% if trd_env == 'SIMULATE' %}active{% endif %}"
-    href="/dividends?trd_env=SIMULATE&start={{ start }}&end={{ end }}">Paper</a>
+    href="/dividends?trd_env=SIMULATE&start={{ start }}&end={{ end }}{% if show_all %}&all=1{% endif %}">Paper</a>
 </nav>
 
 <nav class="nav-tabs" aria-label="Accounts">
   <a class="{% if not selected_acc_id %}active{% endif %}"
-    href="/dividends?trd_env={{ trd_env }}&start={{ start }}&end={{ end }}">All accounts</a>
+    href="/dividends?trd_env={{ trd_env }}&start={{ start }}&end={{ end }}{% if show_all %}&all=1{% endif %}">All
+    accounts</a>
   {% for acc in accounts %}
   <a class="{% if selected_acc_id == acc.acc_id %}active{% endif %}"
-    href="/dividends?trd_env={{ trd_env }}&acc_id={{ acc.acc_id }}&start={{ start }}&end={{ end }}">{{
+    href="/dividends?trd_env={{ trd_env }}&acc_id={{ acc.acc_id }}&start={{ start }}&end={{ end }}{% if show_all %}&all=1{% endif %}">{{
     acc.markets|join('/') or 'ACC' }} · {{
     acc.acc_id }}</a>
   {% endfor %}
 </nav>
 
+<form class="range-form" method="get" action="/dividends">
+  <input type="hidden" name="trd_env" value="{{ trd_env }}" />
+  {% if selected_acc_id %}
+  <input type="hidden" name="acc_id" value="{{ selected_acc_id }}" />
+  {% endif %}
+  <label>
+    From
+    <input type="month" name="start" value="{{ start[:7] }}" required />
+  </label>
+  <label>
+    To
+    <input type="month" name="end" value="{{ end[:7] }}" required />
+  </label>
+  <button type="submit" class="secondary" name="sync" value="0">Show</button>
+  <button type="submit" name="sync" value="1">Sync range</button>
+  <a class="btn{% if not show_all %} secondary{% endif %}"
+    href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&all=1">Show
+    all collected</a>
+</form>
+
 {% if error %}
 <div class="error">{{ error }}</div>
+{% endif %}
+
+{% if auto_sync %}
+<p class="meta sync-progress">Auto-syncing… {{ sync.remaining_days }} weekday(s) left in this range. Next batch in ~32s.
+  <a
+    href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=0{% if show_all %}&all=1{% endif %}">Stop</a>
+</p>
+{% elif sync.remaining_days and not show_all %}
+<p class="meta">OpenD allows ~20 cash-flow days per 30s. Click <strong>Sync range</strong> once — it will keep pulling
+  newest missing days until the range is complete (or hit Stop).</p>
 {% endif %}
 
 <section class="summary">
@@ -63,13 +101,16 @@
   </div>
 </section>
 
-{% if sync.remaining_days %}
-<p class="meta">OpenD allows ~20 cash-flow days per 30s. Click <strong>Sync more</strong> to pull the next batch into
-  the local cache.</p>
-{% endif %}
-
+{% if sync.fetched_days %}
 <article class="card">
-  {% if dividends %}
+  <h2 class="section-title">Newly fetched
+    <span class="meta" style="font-weight:400; margin:0;">
+      · {{ sync.fetched_days }}d synced
+      {% if new_dividends %}· {{ new_dividends|length }} dividend{{ 's' if new_dividends|length != 1 else '' }}{% else
+      %}· no dividends in this batch{% endif %}
+    </span>
+  </h2>
+  {% if new_dividends %}
   <div class="table-wrap">
     <table class="orders-table">
       <thead>
@@ -83,8 +124,8 @@
         </tr>
       </thead>
       <tbody>
-        {% for d in dividends %}
-        <tr>
+        {% for d in new_dividends %}
+        <tr class="row-new">
           <td>{{ d.clearing_date }}</td>
           <td>
             {% if d.stock_name or d.stock_code %}
@@ -108,10 +149,62 @@
     </table>
   </div>
   {% else %}
+  <div class="empty">No cash dividends in the days just synced.</div>
+  {% endif %}
+</article>
+{% endif %}
+
+<article class="card">
+  <h2 class="section-title">{% if show_all %}All collected dividends{% else %}All dividends in range{% endif %}
+    <span class="meta" style="font-weight:400; margin:0;">· {{ totals.count }}</span>
+  </h2>
+  {% if dividends %}
+  <div class="table-wrap">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Stock</th>
+          <th>Type</th>
+          <th class="num">Shares</th>
+          <th class="num">Amount</th>
+          <th>Remark</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in dividends %}
+        <tr{% if d.is_new %} class="row-new" {% endif %}>
+          <td>{{ d.clearing_date }}{% if d.is_new %} <span class="new-tag">new</span>{% endif %}</td>
+          <td>
+            {% if d.stock_name or d.stock_code %}
+            <div>{{ d.stock_name or d.stock_code }}</div>
+            {% if d.stock_code and d.stock_name %}<div class="meta" style="margin:0">{{ d.stock_code }}</div>{% endif %}
+            {% else %}
+            —
+            {% endif %}
+          </td>
+          <td>{{ d.cashflow_type or '—' }}</td>
+          <td class="num">{% if d.shares is not none %}{{ d.shares }}{% else %}—{% endif %}</td>
+          <td class="num up">
+            {% if d.cashflow_amount is not none %}
+            {{ d.currency }} {{ '%+.2f'|format(d.cashflow_amount) }}
+            {% else %}—{% endif %}
+          </td>
+          <td style="white-space:normal; max-width:28rem;">{{ d.cashflow_remark or '—' }}</td>
+          </tr>
+          {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
   <div class="empty">
+    {% if show_all %}
+    No cash dividends in cache yet. Use a date range and Sync range to pull from OpenD.
+    {% else %}
     No cash dividends in cache for this range.
     {% if sync.remaining_days %}Click Sync more to pull clearing dates from OpenD.{% else %}
     Confirm OpenD is unlocked for trade queries, or widen the date range.{% endif %}
+    {% endif %}
   </div>
   {% endif %}
 </article>

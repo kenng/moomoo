@@ -3,15 +3,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from momo.adapters.google_sheets import GoogleSheetsError
 from momo.config import get_settings
 from momo.domain.ranking import format_publish_time, parse_publish_time
 from momo.opend_client import OpenDError
-from momo.services import dividend_history, news_digest, order_history
+from momo.services import dividend_history, news_digest, order_history, sheets_sync
 from momo.watchlist import load_watchlist, resolve_stock
 
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
@@ -27,13 +28,15 @@ templates.env.filters["format_publish_time"] = format_publish_time
 
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    digests = news_digest.get_watchlist_digest()
+def home(request: Request, source: str = "all"):
+    source = news_digest.normalize_news_provider(source)
+    digests = news_digest.get_watchlist_digest(provider=source)
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "digests": digests,
+            "source": source,
             "settings": get_settings(),
             "error": None,
         },
@@ -168,8 +171,10 @@ def dividends_page(
     start: str | None = None,
     end: str | None = None,
     trd_env: str | None = None,
-    sync: int = 1,
+    sync: int = 0,
+    all_collected: int = Query(0, alias="all"),
 ):
+    show_all = bool(all_collected)
     try:
         data = dividend_history.get_dividend_history(
             acc_id=acc_id,
@@ -177,6 +182,7 @@ def dividends_page(
             end=end,
             trd_env=trd_env,
             sync=bool(sync),
+            show_all=show_all,
         )
         error = data.get("error")
     except OpenDError as exc:
@@ -186,10 +192,18 @@ def dividends_page(
             "selected_acc_id": acc_id,
             "start": start or "",
             "end": end or "",
+            "show_all": show_all,
             "as_of": "",
             "dividends": [],
+            "new_dividends": [],
             "totals": {"count": 0, "by_currency": []},
-            "sync": {"fetched_days": 0, "remaining_days": 0, "accounts_synced": 0},
+            "sync": {
+                "fetched_days": 0,
+                "remaining_days": 0,
+                "accounts_synced": 0,
+                "fetched_dates": [],
+            },
+            "auto_sync": False,
         }
         error = str(exc)
     return templates.TemplateResponse(
@@ -200,9 +214,17 @@ def dividends_page(
 
 
 @app.get("/stock/{code}", response_class=HTMLResponse)
-def stock_detail(request: Request, code: str, sort: str = "date"):
+def stock_detail(
+    request: Request, code: str, sort: str = "date", source: str = "all"
+):
     stock = resolve_stock(code)
-    digest = news_digest.get_digest_for_code(stock["code"], market=stock["market"])
+    source = news_digest.normalize_news_provider(source)
+    digest = news_digest.get_digest_for_code(
+        stock["code"],
+        market=stock["market"],
+        provider=source,
+        limit=news_digest.FINNHUB_DIGEST_LIMIT,
+    )
     sort = sort if sort in ("date", "score") else "date"
     news = list(digest.get("news") or [])
     if sort == "score":
@@ -220,6 +242,7 @@ def stock_detail(request: Request, code: str, sort: str = "date"):
             "stock": stock,
             "digest": digest,
             "sort": sort,
+            "source": source,
             "error": None,
         },
     )
@@ -250,13 +273,22 @@ def api_watchlist():
 
 
 @app.get("/api/news")
-def api_news(code: str | None = None, limit: int | None = None):
+def api_news(
+    code: str | None = None,
+    limit: int | None = None,
+    source: str | None = None,
+):
     if code:
         stock = resolve_stock(code)
         return news_digest.get_digest_for_code(
-            stock["code"], limit=limit, market=stock["market"]
+            stock["code"],
+            limit=limit,
+            market=stock["market"],
+            provider=source,
         )
-    return news_digest.get_watchlist_digest(limit_per_stock=limit)
+    return news_digest.get_watchlist_digest(
+        limit_per_stock=limit, provider=source
+    )
 
 
 @app.post("/api/refresh")
@@ -265,3 +297,21 @@ def api_refresh(code: str | None = Form(default=None)):
         stock = resolve_stock(code)
         return news_digest.refresh_stock_news(stock)
     return news_digest.refresh_watchlist()
+
+
+@app.post("/api/sync/stock-orders")
+def api_sync_stock_orders(
+    acc_id: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    trd_env: str | None = None,
+):
+    """Fetch OpenD stock orders and replace the Google Sheet 'stock orders' tab."""
+    try:
+        return sheets_sync.sync_stock_orders(
+            acc_id=acc_id, start=start, end=end, trd_env=trd_env
+        )
+    except OpenDError as exc:
+        return {"ok": False, "error": str(exc)}
+    except GoogleSheetsError as exc:
+        return {"ok": False, "error": str(exc)}

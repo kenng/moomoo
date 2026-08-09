@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     news_max_count: int = 50
     news_top_n: int = 10
 
+    finnhub_api_key: str = ""
+    finnhub_news_lookback_days: int = 7
+
+    # Google Sheets sync (optional — leave empty to disable)
+    google_sheets_spreadsheet_id: str = ""
+    google_sheets_credentials_path: Path = ROOT_DIR / "credentials" / "google-sheets.json"
+    google_sheets_stock_orders_tab: str = "stock orders"
+
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 

@@ -273,6 +273,83 @@ button.secondary,
   text-decoration: none;
 }
 
+.source-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1.25rem;
+}
+
+.source-tabs a {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.source-tabs a:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.source-tabs a.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.provider-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.range-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem 1rem;
+  margin: -0.25rem 0 1.25rem;
+  padding: 0.85rem 1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.range-form label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.range-form input[type="month"] {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--mono);
+  padding: 0.45rem 0.6rem;
+  min-width: 9.5rem;
+}
+
+.range-form button,
+.range-form .btn {
+  margin-top: 0.1rem;
+}
+
 .summary {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -436,4 +513,26 @@ button.secondary,
 .orders-table td.up,
 .orders-table td.down {
   font-weight: 600;
+}
+
+.orders-table tr.row-new td {
+  background: #eef7f2;
+}
+
+.new-tag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.card + .card {
+  margin-top: 1rem;
 }

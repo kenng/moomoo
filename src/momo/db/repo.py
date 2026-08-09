@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from momo.db.models import CashFlowDay, DividendReceived, NewsItem, QuoteSnapshot
+from momo.domain.ranking import parse_publish_time
 
 
 def upsert_news_items(session: Session, items: list[dict]) -> int:
@@ -25,13 +26,36 @@ def upsert_news_items(session: Session, items: list[dict]) -> int:
             existing.view_count = item["view_count"]
             existing.related_securities = item["related_securities"]
             existing.importance_score = item["importance_score"]
+            existing.provider = item.get("provider") or existing.provider or "opend"
             existing.fetched_at = datetime.utcnow()
             existing.stock_name = item.get("stock_name", existing.stock_name)
         else:
-            session.add(NewsItem(**item))
+            session.add(NewsItem(**{**item, "provider": item.get("provider") or "opend"}))
             saved += 1
     session.commit()
     return saved
+
+
+def delete_news_older_than(session: Session, *, cutoff: datetime) -> int:
+    """Delete news older than cutoff (by publish_time, else fetched_at)."""
+    cutoff_naive = cutoff.replace(tzinfo=None) if cutoff.tzinfo else cutoff
+    deleted = 0
+    for row in session.scalars(select(NewsItem)):
+        published = parse_publish_time(row.publish_time)
+        if published is not None:
+            age_ref = published.replace(tzinfo=None)
+        else:
+            age_ref = row.fetched_at
+            if age_ref is None:
+                continue
+            if age_ref.tzinfo is not None:
+                age_ref = age_ref.replace(tzinfo=None)
+        if age_ref < cutoff_naive:
+            session.delete(row)
+            deleted += 1
+    if deleted:
+        session.commit()
+    return deleted
 
 
 def save_snapshot(session: Session, snapshot: dict) -> None:
@@ -39,22 +63,30 @@ def save_snapshot(session: Session, snapshot: dict) -> None:
     session.commit()
 
 
-def list_news_for_symbol(session: Session, symbol: str, limit: int = 10) -> list[NewsItem]:
-    stmt = (
-        select(NewsItem)
-        .where(NewsItem.symbol == symbol)
-        .order_by(NewsItem.importance_score.desc(), NewsItem.fetched_at.desc())
-        .limit(limit)
-    )
+def list_news_for_symbol(
+    session: Session,
+    symbol: str,
+    limit: int = 10,
+    provider: str | None = None,
+) -> list[NewsItem]:
+    stmt = select(NewsItem).where(NewsItem.symbol == symbol)
+    if provider:
+        stmt = stmt.where(NewsItem.provider == provider)
+    stmt = stmt.order_by(
+        NewsItem.importance_score.desc(), NewsItem.fetched_at.desc()
+    ).limit(limit)
     return list(session.scalars(stmt))
 
 
-def list_top_news(session: Session, limit: int = 50) -> list[NewsItem]:
-    stmt = (
-        select(NewsItem)
-        .order_by(NewsItem.importance_score.desc(), NewsItem.fetched_at.desc())
-        .limit(limit)
-    )
+def list_top_news(
+    session: Session, limit: int = 50, provider: str | None = None
+) -> list[NewsItem]:
+    stmt = select(NewsItem)
+    if provider:
+        stmt = stmt.where(NewsItem.provider == provider)
+    stmt = stmt.order_by(
+        NewsItem.importance_score.desc(), NewsItem.fetched_at.desc()
+    ).limit(limit)
     return list(session.scalars(stmt))
 
 
@@ -156,22 +188,19 @@ def list_dividends(
     session: Session,
     *,
     trd_env: str,
-    start: str,
-    end: str,
+    start: str | None = None,
+    end: str | None = None,
     acc_id: str | None = None,
 ) -> list[DividendReceived]:
-    stmt = (
-        select(DividendReceived)
-        .where(
-            DividendReceived.trd_env == trd_env,
-            DividendReceived.clearing_date >= start,
-            DividendReceived.clearing_date <= end,
-        )
-        .order_by(
-            DividendReceived.clearing_date.desc(),
-            DividendReceived.cashflow_id.desc(),
-        )
-    )
+    stmt = select(DividendReceived).where(DividendReceived.trd_env == trd_env)
+    if start:
+        stmt = stmt.where(DividendReceived.clearing_date >= start)
+    if end:
+        stmt = stmt.where(DividendReceived.clearing_date <= end)
     if acc_id:
         stmt = stmt.where(DividendReceived.acc_id == acc_id)
+    stmt = stmt.order_by(
+        DividendReceived.clearing_date.desc(),
+        DividendReceived.cashflow_id.desc(),
+    )
     return list(session.scalars(stmt))

@@ -18,7 +18,45 @@ _DIVIDEND_TYPE_HINTS = ("dividend", "股息", "红利", "分派")
 _REMARK_STOCK = re.compile(
     r"<([A-Z]+)\s+(\S+)\s+([^>]+)>", re.IGNORECASE
 )
+# e.g. "DXN (5318)" — Bursa-style name + stock code
+_REMARK_STOCK_PAREN = re.compile(
+    r"([A-Za-z][A-Za-z0-9.&+\-]*)\s*\((\d{3,5})\)"
+)
+# e.g. "… per CLMT Unit" / "per MAYBANK share"
+_REMARK_PER_TICKER = re.compile(
+    r"\bper\s+([A-Z]{2,12})\s+"
+    r"(?:Units?|shares?|ordinary\s+shares?)\b",
+    re.IGNORECASE,
+)
+# e.g. "CRESNDO - Second Interim…"
+_REMARK_LEADING_TICKER = re.compile(r"^([A-Z]{2,12})\s*[-–—]\s+")
 _REMARK_SHARES = re.compile(r"(\d+(?:\.\d+)?)\s*shares?", re.IGNORECASE)
+_TICKER_STOPWORDS = frozenset(
+    {
+        "ORDINARY",
+        "SHARE",
+        "SHARES",
+        "UNIT",
+        "UNITS",
+        "STOCK",
+        "THE",
+        "AND",
+        "INTERIM",
+        "FINAL",
+        "SINGLE",
+        "TIER",
+        "SPECIAL",
+        "GROSS",
+        "NET",
+        "CASH",
+        "FUND",
+        "INCOME",
+        "FIRST",
+        "SECOND",
+        "THIRD",
+        "FOURTH",
+    }
+)
 
 
 def fetch_cash_flow_day(
@@ -55,8 +93,53 @@ def fetch_cash_flow_days(
         for i, day in enumerate(clearing_dates):
             if i and i % _MAX_BURST == 0:
                 time.sleep(_BURST_PAUSE_SEC)
-            out[day] = _cash_flow_from_ctx(ctx, ft, env, acc_id, day)
+            out[day] = _cash_flow_from_ctx(ctx, ft, env, acc_id, day, retries=1)
     return out
+
+
+def account_supports_cash_flow(exc: Exception) -> bool:
+    """False when OpenD rejects cash-flow queries for this account type."""
+    text = str(exc).lower()
+    return "does not support" not in text
+
+
+def _cash_flow_from_ctx(ctx, ft, env, acc_id: int, clearing_date: str, retries: int = 0) -> list[dict]:
+    attempt = 0
+    while True:
+        ret, data = ctx.get_acc_cash_flow(
+            clearing_date=clearing_date, trd_env=env, acc_id=acc_id
+        )
+        if ret == ft.RET_OK:
+            break
+        msg = str(data)
+        if retries and attempt < retries and "high frequency" in msg.lower():
+            attempt += 1
+            time.sleep(_BURST_PAUSE_SEC)
+            continue
+        raise OpenDError(f"get_acc_cash_flow failed ({clearing_date}): {data}")
+    if data is None or getattr(data, "empty", True):
+        return []
+
+    rows = []
+    for _, row in data.iterrows():
+        cashflow_id = str(row.get("cashflow_id") or "")
+        if not cashflow_id:
+            continue
+        rows.append(
+            {
+                "acc_id": acc_id,
+                "cashflow_id": cashflow_id,
+                "clearing_date": str(row.get("clearing_date") or clearing_date),
+                "settlement_date": _na_str(row.get("settlement_date")),
+                "currency": str(row.get("currency") or ""),
+                "cashflow_type": _enum_name(row.get("cashflow_type")),
+                "cashflow_direction": _enum_name(row.get("cashflow_direction")),
+                "cashflow_amount": _float(row.get("cashflow_amount")),
+                "cashflow_remark": str(row.get("cashflow_remark") or ""),
+                "create_time": _na_str(row.get("create_time")),
+            }
+        )
+    return rows
 
 
 def is_dividend_row(row: dict) -> bool:
@@ -90,6 +173,23 @@ def enrich_dividend(row: dict) -> dict:
         if market == "HK" and local.isdigit():
             local = local.zfill(5)
         stock_code = f"{market}.{local}" if market else local
+    else:
+        pm = _REMARK_STOCK_PAREN.search(remark)
+        if pm:
+            stock_name = pm.group(1).strip()
+            local = pm.group(2).strip()
+            exchange = "MY"
+            stock_code = f"MY.{local}"
+        else:
+            tm = _REMARK_PER_TICKER.search(remark) or _REMARK_LEADING_TICKER.search(
+                remark
+            )
+            if tm:
+                name = tm.group(1).upper()
+                if name not in _TICKER_STOPWORDS:
+                    stock_name = name
+                    exchange = "MY"
+                    stock_code = _resolve_my_symbol(stock_name)
 
     shares = None
     sm = _REMARK_SHARES.search(remark)
@@ -106,6 +206,22 @@ def enrich_dividend(row: dict) -> dict:
         "stock_name": stock_name,
         "shares": shares,
     }
+
+
+def _resolve_my_symbol(ticker: str) -> str:
+    """Map a Bursa short name to MY.<code> via watchlist when possible."""
+    name = (ticker or "").strip().upper()
+    if not name:
+        return ""
+    try:
+        from momo.watchlist import load_watchlist
+
+        for stock in load_watchlist():
+            if stock.get("market") == "MY" and str(stock.get("name") or "").upper() == name:
+                return stock["symbol"]
+    except Exception:
+        pass
+    return f"MY.{name}"
 
 
 def weekday_range(start: date, end: date) -> list[date]:
@@ -128,39 +244,41 @@ def parse_day(value: str | None) -> date | None:
         return None
 
 
+def parse_month_start(value: str | None) -> date | None:
+    """First day of YYYY-MM (or YYYY-MM-DD month)."""
+    month = _parse_year_month(value)
+    if not month:
+        return None
+    year, mon = month
+    return date(year, mon, 1)
+
+
+def parse_month_end(value: str | None) -> date | None:
+    """Last day of YYYY-MM (or YYYY-MM-DD month)."""
+    month = _parse_year_month(value)
+    if not month:
+        return None
+    year, mon = month
+    if mon == 12:
+        return date(year, 12, 31)
+    return date(year, mon + 1, 1) - timedelta(days=1)
+
+
+def _parse_year_month(value: str | None) -> tuple[int, int] | None:
+    if not value:
+        return None
+    text = value.strip()
+    for fmt, size in (("%Y-%m-%d", 10), ("%Y-%m", 7)):
+        try:
+            dt = datetime.strptime(text[:size], fmt)
+            return dt.year, dt.month
+        except ValueError:
+            continue
+    return None
+
+
 def list_accounts(trd_env: str | None = None) -> list[dict]:
     return orders_adapter.list_accounts(trd_env=trd_env)
-
-
-def _cash_flow_from_ctx(ctx, ft, env, acc_id: int, clearing_date: str) -> list[dict]:
-    ret, data = ctx.get_acc_cash_flow(
-        clearing_date=clearing_date, trd_env=env, acc_id=acc_id
-    )
-    if ret != ft.RET_OK:
-        raise OpenDError(f"get_acc_cash_flow failed ({clearing_date}): {data}")
-    if data is None or getattr(data, "empty", True):
-        return []
-
-    rows = []
-    for _, row in data.iterrows():
-        cashflow_id = str(row.get("cashflow_id") or "")
-        if not cashflow_id:
-            continue
-        rows.append(
-            {
-                "acc_id": acc_id,
-                "cashflow_id": cashflow_id,
-                "clearing_date": str(row.get("clearing_date") or clearing_date),
-                "settlement_date": _na_str(row.get("settlement_date")),
-                "currency": str(row.get("currency") or ""),
-                "cashflow_type": _enum_name(row.get("cashflow_type")),
-                "cashflow_direction": _enum_name(row.get("cashflow_direction")),
-                "cashflow_amount": _float(row.get("cashflow_amount")),
-                "cashflow_remark": str(row.get("cashflow_remark") or ""),
-                "create_time": _na_str(row.get("create_time")),
-            }
-        )
-    return rows
 
 
 def _trd_env(ft, name: str):

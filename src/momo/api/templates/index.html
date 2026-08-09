@@ -19,10 +19,16 @@
 <div class="error">{{ request.query_params.get('error') }}</div>
 {% endif %}
 
+<nav class="source-tabs" aria-label="News source">
+  <a class="{% if source == 'all' %}active{% endif %}" href="/?source=all">All</a>
+  <a class="{% if source == 'opend' %}active{% endif %}" href="/?source=opend">OpenD</a>
+  <a class="{% if source == 'finnhub' %}active{% endif %}" href="/?source=finnhub">Finnhub</a>
+</nav>
+
 <section class="grid">
   {% for item in digests %}
   <article class="card">
-    <h2><a href="/stock/{{ item.symbol }}">{{ item.name }}</a></h2>
+    <h2><a href="/stock/{{ item.symbol }}?source={{ source }}">{{ item.name }}</a></h2>
     <div class="meta">{{ item.symbol }}</div>
     {% set snap = item.snapshot %}
     {% if snap %}
@@ -39,10 +45,14 @@
         <span class="score">{{ n.importance_score }}</span>
         {% if n.url %}<a class="news-title" href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else
         %}<span class="news-title">{{ n.title }}</span>{% endif %}
-        <div class="meta">{{ n.news_sub_type }} · {{ n.publish_time|format_publish_time }} · {{ n.source }}</div>
+        <div class="meta">
+          <span class="provider-tag">{{ n.provider|default('opend') }}</span>
+          · {{ n.news_sub_type }} · {{ n.publish_time|format_publish_time }} · {{ n.source }}
+        </div>
       </li>
       {% else %}
-      <li class="empty">No cached news. Refresh from OpenD.</li>
+      <li class="empty">No cached {% if source == 'all' %}news{% else %}{{ source }} news{% endif %}. Refresh to fetch.
+      </li>
       {% endfor %}
     </ul>
     {% if item.news|length > 3 %}

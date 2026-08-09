@@ -25,6 +25,7 @@ class NewsItem(Base):
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     related_securities: Mapped[str] = mapped_column(Text, default="")
     url: Mapped[str] = mapped_column(Text, default="")
+    provider: Mapped[str] = mapped_column(String(16), default="opend", index=True)
     importance_score: Mapped[float] = mapped_column(Float, default=0.0)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
