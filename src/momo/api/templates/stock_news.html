@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Stock News — Positions — Momo{% endblock %}
+{% block content %}
+{% set qs_env = 'trd_env=' ~ trd_env %}
+{% set qs_acc = ('&acc_id=' ~ selected_acc_id) if selected_acc_id else '' %}
+<header>
+  <div>
+    <div class="brand">Stock News</div>
+    <div class="sub">Open stock positions · HK → US → MY · {{ trd_env }}</div>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/">Watchlist</a>
+    <a class="btn secondary" href="/orders/stocks?{{ qs_env }}{{ qs_acc }}">Orders</a>
+    <a class="btn secondary" href="/dividends?{{ qs_env }}{{ qs_acc }}">Dividends</a>
+    <a class="btn" href="/stock-news?{{ qs_env }}{{ qs_acc }}">Refresh</a>
+  </div>
+</header>
+
+<nav class="nav-tabs" aria-label="Trading environment">
+  <a class="{% if trd_env == 'REAL' %}active{% endif %}" href="/stock-news?trd_env=REAL{{ qs_acc }}">Live</a>
+  <a class="{% if trd_env == 'SIMULATE' %}active{% endif %}" href="/stock-news?trd_env=SIMULATE{{ qs_acc }}">Paper</a>
+</nav>
+
+<nav class="nav-tabs" aria-label="Accounts">
+  <a class="{% if not selected_acc_id %}active{% endif %}" href="/stock-news?{{ qs_env }}">All accounts</a>
+  {% for acc in accounts %}
+  <a class="{% if selected_acc_id == acc.acc_id %}active{% endif %}"
+    href="/stock-news?{{ qs_env }}&acc_id={{ acc.acc_id }}">{{ acc.markets|join('/') or 'ACC' }} · {{
+    acc.acc_id }}</a>
+  {% endfor %}
+</nav>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div class="error">{{ request.query_params.get('error') }}</div>
+{% endif %}
+
+{% if sections %}
+{% for section in sections %}
+<section class="section-block">
+  <h2 class="section-title">{{ section.market }}
+    <span class="section-hint">{{ section.stocks|length }} stock{% if section.stocks|length != 1 %}s{% endif %}</span>
+  </h2>
+  <ul class="stock-news-list">
+    {% for s in section.stocks %}
+    <li class="stock-news-row">
+      <div class="stock-news-main">
+        <a class="stock-news-name" href="/stock/{{ s.symbol }}">{{ s.name }}</a>
+        <div class="meta">{{ s.symbol }}{% if s.qty is not none %} · qty {{ s.qty }}{% endif %}</div>
+      </div>
+      <div class="stock-news-actions">
+        <a class="btn secondary" href="/stock/{{ s.symbol }}">App news</a>
+        {% if s.klse_news_url %}
+        <a class="btn" href="{{ s.klse_news_url }}" target="_blank" rel="noopener">KLSE news</a>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% else %}
+<div class="empty">No open stock positions.</div>
+{% endif %}
+{% endblock %}

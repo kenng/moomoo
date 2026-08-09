@@ -16,6 +16,9 @@
   <div class="actions">
     <a class="btn secondary" href="/">Watchlist</a>
     <a class="btn secondary"
+      href="/stock-news?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Stock
+      News</a>
+    <a class="btn secondary"
       href="/orders?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Orders</a>
     <a class="btn"
       href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=1{% if show_all %}&all=1{% endif %}">Sync

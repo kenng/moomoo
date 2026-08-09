@@ -9,13 +9,55 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from momo.adapters.google_sheets import GoogleSheetsError
-from momo.config import get_settings
+from momo.config import bare_code, get_settings
 from momo.domain.ranking import format_publish_time, parse_publish_time
 from momo.opend_client import OpenDError
 from momo.services import dividend_history, news_digest, order_history, sheets_sync
 from momo.watchlist import load_watchlist, resolve_stock
 
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
+_STOCK_NEWS_MARKET_ORDER = ("HK", "US", "MY")
+_KLSE_NEWS_URL = "https://www.klsescreener.com/v2/news/stock/{code}"
+
+
+def _group_position_stocks_by_market(stock_groups: list[dict]) -> list[dict]:
+    """Group open stock positions as HK → US → MY (then any other markets)."""
+    buckets: dict[str, list[dict]] = {m: [] for m in _STOCK_NEWS_MARKET_ORDER}
+    other: list[dict] = []
+    for g in stock_groups:
+        symbol = (g.get("code") or "").strip().upper()
+        if not symbol:
+            continue
+        market = symbol.split(".", 1)[0] if "." in symbol else ""
+        code = bare_code(symbol)
+        row = {
+            "code": code,
+            "symbol": symbol,
+            "name": g.get("name") or code,
+            "market": market,
+            "qty": (g.get("position") or {}).get("qty"),
+            "klse_news_url": (
+                _KLSE_NEWS_URL.format(code=code) if market == "MY" else None
+            ),
+        }
+        if market in buckets:
+            buckets[market].append(row)
+        else:
+            other.append(row)
+
+    sections: list[dict] = []
+    for market in _STOCK_NEWS_MARKET_ORDER:
+        stocks = sorted(buckets[market], key=lambda s: s["code"])
+        if stocks:
+            sections.append({"market": market, "stocks": stocks})
+    if other:
+        sections.append(
+            {
+                "market": "OTHER",
+                "stocks": sorted(other, key=lambda s: (s["market"], s["code"])),
+            }
+        )
+    return sections
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -161,6 +203,36 @@ def orders_stocks_page(
         start=start,
         end=end,
         trd_env=trd_env,
+    )
+
+
+@app.get("/stock-news", response_class=HTMLResponse)
+def stock_news_page(
+    request: Request,
+    acc_id: int | None = None,
+    trd_env: str | None = None,
+):
+    """List open stock positions grouped by market, with KLSE news links for MY."""
+    try:
+        data = order_history.get_order_history(acc_id=acc_id, trd_env=trd_env)
+        error = data.get("error")
+    except OpenDError as exc:
+        data = _empty_orders_payload(
+            acc_id=acc_id, start=None, end=None, trd_env=trd_env
+        )
+        error = str(exc)
+
+    sections = _group_position_stocks_by_market(data.get("stock_groups") or [])
+    return templates.TemplateResponse(
+        request,
+        "stock_news.html",
+        {
+            "trd_env": data.get("trd_env"),
+            "accounts": data.get("accounts") or [],
+            "selected_acc_id": data.get("selected_acc_id"),
+            "sections": sections,
+            "error": error,
+        },
     )
 
 
