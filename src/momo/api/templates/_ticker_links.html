@@ -1,0 +1,15 @@
+{% macro ticker_ext_links(symbol) %}
+{%- set yahoo = symbol|yahoo_quote_url -%}
+{%- set sws = symbol|simplywall_url -%}
+{%- if yahoo or sws -%}
+<span class="ticker-ext">
+  {%- if yahoo -%}
+  <a href="{{ yahoo }}" target="_blank" rel="noopener noreferrer" title="Yahoo Finance">Yahoo</a>
+  {%- endif -%}
+  {%- if yahoo and sws %} <span class="ticker-ext-sep" aria-hidden="true">·</span> {% endif -%}
+  {%- if sws -%}
+  <a href="{{ sws }}" target="_blank" rel="noopener noreferrer" title="Simply Wall St">Simply Wall</a>
+  {%- endif -%}
+</span>
+{%- endif -%}
+{% endmacro %}

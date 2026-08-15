@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -16,18 +16,37 @@ from auth import (
     verify_credentials,
 )
 from filters import (
+    NEWS_RETENTION_DAYS,
     format_publish_time,
     format_short_date,
     format_sort_key,
     format_updated_at,
+    news_is_fresh,
     parse_publish_time,
     render_markdown,
 )
+from ticker_urls import simplywall_url, yahoo_quote_url
 from r2_store import get_json, get_meta
 from template_sources import TEMPLATES
 
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
 _KNOWN_MARKETS = ("MY", "HK", "US", "SG", "SH", "SZ", "JP")
+
+
+def _fresh_news_items(items: list | None) -> list:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=NEWS_RETENTION_DAYS)
+    return [
+        item
+        for item in items or []
+        if news_is_fresh(item.get("publish_time") or "", cutoff=cutoff)
+    ]
+
+
+def _fresh_digests(digests: list | None) -> list:
+    return [
+        {**digest, "news": _fresh_news_items(digest.get("news"))}
+        for digest in digests or []
+    ]
 
 app = FastAPI(title="Momo Digest Mirror", version="0.1.0")
 app.add_middleware(RequireLoginMiddleware)
@@ -41,6 +60,8 @@ _jinja.filters["format_updated_at"] = format_updated_at
 _jinja.filters["format_short_date"] = format_short_date
 _jinja.filters["format_sort_key"] = format_sort_key
 _jinja.filters["markdown"] = render_markdown
+_jinja.filters["yahoo_quote_url"] = yahoo_quote_url
+_jinja.filters["simplywall_url"] = simplywall_url
 
 
 def _env(request: Request):
@@ -204,7 +225,7 @@ async def stock_news_page(request: Request, source: str = "all"):
         request,
         "momo_news.html",
         {
-            "digests": digests or [],
+            "digests": _fresh_digests(digests),
             "source": source,
             "settings": None,
             "error": None,
@@ -367,7 +388,7 @@ async def stock_detail(
     stock = payload.get("stock") or {"symbol": symbol, "code": _bare_code(symbol)}
     by_provider = payload.get("digests_by_provider") or {}
     digest = by_provider.get(source) or payload.get("digest") or {}
-    news = list(digest.get("news") or [])
+    news = _fresh_news_items(digest.get("news"))
     if sort == "score":
         news.sort(key=lambda n: n.get("importance_score") or 0, reverse=True)
     else:

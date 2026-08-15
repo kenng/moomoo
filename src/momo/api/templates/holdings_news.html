@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ticker_links.html" import ticker_ext_links %}
 {% block title %}Holdings News — Positions — Momo{% endblock %}
 {% block content %}
 {% set qs_env = 'trd_env=' ~ trd_env %}
@@ -54,7 +55,9 @@
       <div class="stock-news-main">
         <a class="stock-news-name" href="/stock/{{ s.symbol }}">{{ s.name }}</a>
         <div class="meta">{{ s.symbol }}{% if s.qty is not none %} · qty {{ s.qty }}{% endif %}{% if s.option_contracts
-          %} · {{ s.option_contracts }} option{% if s.option_contracts != 1 %}s{% endif %}{% endif %}</div>
+          %} · {{ s.option_contracts }} option{% if s.option_contracts != 1 %}s{% endif %}{% endif %}
+          {{ ticker_ext_links(s.symbol) }}
+        </div>
         {% if s.ai_summary %}
         <details class="ai-summary-details stock-news-ai-summary">
           <summary>

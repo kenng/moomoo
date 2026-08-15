@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,7 +15,7 @@ from momo.db.models import (
     PriceTargetConsensusHistory,
     QuoteSnapshot,
 )
-from momo.domain.ranking import parse_publish_time
+from momo.domain.ranking import NEWS_RETENTION_DAYS, news_is_fresh
 
 _CONSENSUS_FIELDS = (
     "stock_code",
@@ -69,21 +69,14 @@ def upsert_news_items(session: Session, items: list[dict]) -> int:
 
 def delete_news_older_than(session: Session, *, cutoff: datetime) -> int:
     """Delete news older than cutoff (by publish_time, else fetched_at)."""
-    cutoff_naive = cutoff.replace(tzinfo=None) if cutoff.tzinfo else cutoff
     deleted = 0
     for row in session.scalars(select(NewsItem)):
-        published = parse_publish_time(row.publish_time)
-        if published is not None:
-            age_ref = published.replace(tzinfo=None)
-        else:
-            age_ref = row.fetched_at
-            if age_ref is None:
-                continue
-            if age_ref.tzinfo is not None:
-                age_ref = age_ref.replace(tzinfo=None)
-        if age_ref < cutoff_naive:
-            session.delete(row)
-            deleted += 1
+        if news_is_fresh(
+            row.publish_time, cutoff=cutoff, fetched_at=row.fetched_at
+        ):
+            continue
+        session.delete(row)
+        deleted += 1
     if deleted:
         session.commit()
     return deleted
@@ -105,8 +98,8 @@ def list_news_for_symbol(
         stmt = stmt.where(NewsItem.provider == provider)
     stmt = stmt.order_by(
         NewsItem.importance_score.desc(), NewsItem.fetched_at.desc()
-    ).limit(limit)
-    return list(session.scalars(stmt))
+    )
+    return _fresh_news(list(session.scalars(stmt)), limit)
 
 
 def list_top_news(
@@ -117,8 +110,18 @@ def list_top_news(
         stmt = stmt.where(NewsItem.provider == provider)
     stmt = stmt.order_by(
         NewsItem.importance_score.desc(), NewsItem.fetched_at.desc()
-    ).limit(limit)
-    return list(session.scalars(stmt))
+    )
+    return _fresh_news(list(session.scalars(stmt)), limit)
+
+
+def _fresh_news(rows: list[NewsItem], limit: int) -> list[NewsItem]:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=NEWS_RETENTION_DAYS)
+    fresh = [
+        row
+        for row in rows
+        if news_is_fresh(row.publish_time, cutoff=cutoff, fetched_at=row.fetched_at)
+    ]
+    return fresh[:limit]
 
 
 def latest_snapshot(session: Session, symbol: str) -> QuoteSnapshot | None:

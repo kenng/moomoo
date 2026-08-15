@@ -16,12 +16,11 @@ from momo.db.repo import (
     upsert_news_items,
 )
 from momo.db.session import get_session
-from momo.domain.ranking import score_news_item
+from momo.domain.ranking import NEWS_RETENTION_DAYS, news_is_fresh, score_news_item
 from momo.watchlist import load_watchlist, resolve_stock
 
 logger = logging.getLogger(__name__)
 
-NEWS_RETENTION_DAYS = 30
 NEWS_PROVIDERS = ("all", "opend", "finnhub")
 FINNHUB_DIGEST_LIMIT = 50
 
@@ -43,6 +42,9 @@ def _collect_item(
 ) -> None:
     url = item.get("url") or item.get("title")
     if not url or url in seen_urls:
+        return
+    cutoff = datetime.now(timezone.utc) - timedelta(days=NEWS_RETENTION_DAYS)
+    if not news_is_fresh(item.get("publish_time", ""), cutoff=cutoff):
         return
     seen_urls.add(url)
     related = item.get("related_securities") or []

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -135,6 +136,65 @@ def test_refresh_skips_finnhub_when_api_key_empty(monkeypatch):
     fh_news.assert_not_called()
     assert result["fetched"] == 1
     assert result["news"][0]["url"] == "https://example.com/opend"
+
+
+def test_refresh_skips_old_opend_month_day_dates(monkeypatch):
+    monkeypatch.setenv("FINNHUB_API_KEY", "")
+    get_settings.cache_clear()
+
+    fixed_now = datetime(2026, 8, 15, 12, 0, tzinfo=timezone.utc)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_now if tz is not None else fixed_now.replace(tzinfo=None)
+
+    monkeypatch.setattr(news_digest, "datetime", FrozenDateTime)
+    monkeypatch.setattr("momo.domain.ranking.datetime", FrozenDateTime)
+
+    stock = {
+        "code": "09988",
+        "market": "HK",
+        "symbol": "HK.09988",
+        "name": "BABA-W",
+    }
+    old_item = {
+        "title": "Alibaba Group Target Price Raised to HK$135.00",
+        "news_sub_type": "RATING",
+        "source": "Dow Jones",
+        "publish_time": "9/30",
+        "view_count": 0,
+        "related_securities": ["HK.09988"],
+        "url": "https://www.moomoo.com/news/post/44042687",
+    }
+    recent_item = {
+        "title": "Recent rating",
+        "news_sub_type": "RATING",
+        "source": "Dow Jones",
+        "publish_time": "8/14",
+        "view_count": 0,
+        "related_securities": ["HK.09988"],
+        "url": "https://www.moomoo.com/news/post/recent",
+    }
+
+    with (
+        patch.object(
+            news_digest.news_adapter,
+            "search_news",
+            return_value=[old_item, recent_item],
+        ),
+        patch.object(news_digest.quote_adapter, "get_snapshots", return_value=[]),
+        patch.object(news_digest, "upsert_news_items", return_value=1) as upsert,
+        patch.object(news_digest, "delete_news_older_than", return_value=0),
+        patch.object(news_digest, "get_session") as session_factory,
+    ):
+        session_factory.return_value = MagicMock()
+        result = news_digest.refresh_stock_news(stock)
+
+    stored = upsert.call_args.args[1]
+    assert [n["url"] for n in stored] == [recent_item["url"]]
+    assert result["fetched"] == 1
+    assert result["news"][0]["url"] == recent_item["url"]
 
 
 def test_refresh_merges_and_dedupes_by_url(monkeypatch):

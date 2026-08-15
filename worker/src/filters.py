@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import markdown as markdown_lib
 from markupsafe import Markup
@@ -17,22 +17,66 @@ _MD_TONE_MARKERS = (
     ("🟡", "tone-yellow"),
     ("🔴", "tone-red"),
 )
+NEWS_RETENTION_DAYS = 30
 
 
-def parse_publish_time(publish_time: str) -> datetime | None:
+def parse_publish_time(
+    publish_time: str, *, now: datetime | None = None
+) -> datetime | None:
     if not publish_time:
         return None
-    now = datetime.now(timezone.utc)
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y", "%m/%d"):
+    now = now or datetime.now(timezone.utc)
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y"):
         try:
             parsed = datetime.strptime(publish_time, fmt)
-            if fmt == "%m/%d":
-                parsed = parsed.replace(year=now.year)
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=timezone.utc)
             return parsed
         except ValueError:
             continue
+    parsed = _parse_month_day(publish_time, now)
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def news_is_fresh(
+    publish_time: str,
+    *,
+    cutoff: datetime,
+    fetched_at: datetime | None = None,
+    now: datetime | None = None,
+) -> bool:
+    published = parse_publish_time(publish_time, now=now)
+    if published is not None:
+        age_ref = published.replace(tzinfo=None)
+    elif fetched_at is None:
+        return True
+    else:
+        age_ref = fetched_at.replace(tzinfo=None) if fetched_at.tzinfo else fetched_at
+    cutoff_naive = cutoff.replace(tzinfo=None) if cutoff.tzinfo else cutoff
+    return age_ref >= cutoff_naive
+
+
+def _parse_month_day(publish_time: str, now: datetime) -> datetime | None:
+    parts = publish_time.split("/")
+    if len(parts) != 2:
+        return None
+    try:
+        month, day = int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
+    now_cmp = now.replace(tzinfo=now.tzinfo)
+    for year in (now.year, now.year - 1):
+        try:
+            parsed = datetime(year, month, day)
+        except ValueError:
+            continue
+        if year == now.year and parsed.replace(tzinfo=now.tzinfo) > now_cmp:
+            continue
+        return parsed
     return None
 
 

@@ -641,6 +641,30 @@ button.secondary,
   margin: 0.15rem 0 0;
 }
 
+.ticker-ext {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.ticker-ext a {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.ticker-ext a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.ticker-ext-sep {
+  color: var(--line);
+}
+
 .stock-news-actions {
   display: flex;
   flex-wrap: wrap;

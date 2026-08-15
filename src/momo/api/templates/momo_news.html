@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ticker_links.html" import ticker_ext_links %}
 {% block title %}Momo News — Watchlist{% endblock %}
 {% block content %}
 <header>
@@ -35,7 +36,7 @@
   {% for item in digests %}
   <article class="card">
     <h2><a href="/stock/{{ item.symbol }}?source={{ source }}">{{ item.name }}</a></h2>
-    <div class="meta">{{ item.symbol }}</div>
+    <div class="meta">{{ item.symbol }} {{ ticker_ext_links(item.symbol) }}</div>
     {% set snap = item.snapshot %}
     {% if snap %}
     {% set chg = snap.change_rate or 0 %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ticker_links.html" import ticker_ext_links %}
 {% block title %}Price Targets — Momo{% endblock %}
 {% block content %}
 <header>
@@ -114,6 +115,7 @@
             data-queried="{{ item.fetched_at|format_sort_key }}">
             <td>
               <a href="/stock/{{ item.symbol }}">{{ item.symbol }}</a>
+              {{ ticker_ext_links(item.symbol) }}
               <div class="meta">
                 {{ item.name }}{% if item.option_contracts %} · {{ item.option_contracts }} opt{% endif %}
               </div>
@@ -196,6 +198,7 @@
               <div class="meta">
                 {{ item.symbol }}{% if item.option_contracts %} · {{ item.option_contracts }} option{% if
                 item.option_contracts != 1 %}s{% endif %}{% endif %}
+                {{ ticker_ext_links(item.symbol) }}
               </div>
             </div>
             {% if item.weight_pct is not none %}

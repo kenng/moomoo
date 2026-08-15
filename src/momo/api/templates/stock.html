@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from "_ticker_links.html" import ticker_ext_links %}
 {% block title %}{{ stock.name }} — Momo MY News{% endblock %}
 {% block content %}
 <a class="back" href="/stock-news">← Momo News</a>
 <header>
   <div>
     <div class="brand">{{ stock.name }}</div>
-    <div class="sub">{{ stock.symbol }}</div>
+    <div class="sub">{{ stock.symbol }} {{ ticker_ext_links(stock.symbol) }}</div>
   </div>
   <div class="actions">
     <a class="btn secondary" href="/">Price Targets</a>

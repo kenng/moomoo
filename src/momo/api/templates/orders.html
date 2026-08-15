@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ticker_links.html" import ticker_ext_links %}
 {% block title %}{% if asset_kind == 'options' %}Options{% else %}Stocks{% endif %} — Orders — Momo{% endblock %}
 {% block content %}
 {% set page_path = '/orders' if asset_kind == 'options' else '/orders/stocks' %}
@@ -94,6 +95,9 @@
         · expiry <span class="{% if g.option.expired %}down{% elif g.option.days_to_expiry <= 14 %}warn{% endif %}">{{
           g.option.expiry }}</span>
         {% if g.option.expired %}(expired){% else %}({{ g.option.days_to_expiry }}d){% endif %}
+        {{ ticker_ext_links(g.option.underlying_symbol) }}
+        {% else %}
+        {{ ticker_ext_links(g.code) }}
         {% endif %}
       </div>
     </div>
@@ -180,6 +184,7 @@
         {{ cluster.underlying_symbol }}
         · soonest expiry {{ cluster.nearest_expiry }}
         · {{ cluster.contracts|length }} contract{{ 's' if cluster.contracts|length != 1 else '' }}
+        {{ ticker_ext_links(cluster.underlying_symbol) }}
       </div>
     </div>
     {% if cluster.underlying_last_price is not none %}
