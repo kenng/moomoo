@@ -19,6 +19,37 @@ _SWS_EXCHANGE = {
     "SZ": "szse",
 }
 
+# KLSE pages use the Bursa ticker (SUNREIT), not the numeric stock code (5176).
+_SWS_MY_TICKER = {
+    "1066": "rhbbank",
+    "1155": "maybank",
+    "1295": "pbbank",
+    "4065": "ppb",
+    "5123": "sentral",
+    "5176": "sunreit",
+    "5180": "clmt",
+    "5318": "dxn",
+    "6139": "takaful",
+}
+
+# Canonical analysis URLs when the short /stock/{exchange}/{ticker} path is wrong.
+_SWS_URL_OVERRIDE = {
+    "MY.5176": (
+        "https://simplywall.st/stocks/my/real-estate/klse-sunreit/"
+        "sunway-real-estate-investment-trust-shares"
+    ),
+}
+
+# Google Finance: TICKER:EXCHANGE (US can omit exchange)
+_GOOGLE_EXCHANGE = {
+    "HK": "HKG",
+    "MY": "KLSE",
+    "SG": "SGX",
+    "JP": "TYO",
+    "SH": "SHA",
+    "SZ": "SHE",
+}
+
 
 def _split_symbol(symbol: str) -> tuple[str, str]:
     text = (symbol or "").strip().upper()
@@ -31,6 +62,14 @@ def _split_symbol(symbol: str) -> tuple[str, str]:
     return "", text
 
 
+def _hk_share_code(code: str, *, padded: bool) -> str:
+    if not code.isdigit():
+        return code
+    if padded:
+        return code[-4:].zfill(4) if len(code) >= 4 else code.zfill(4)
+    return str(int(code))
+
+
 def yahoo_quote_symbol(symbol: str) -> str | None:
     market, code = _split_symbol(symbol)
     if not code:
@@ -38,9 +77,7 @@ def yahoo_quote_symbol(symbol: str) -> str | None:
     if market == "US":
         return code.replace(".", "-")
     if market == "HK":
-        if code.isdigit():
-            code = code[-4:].zfill(4) if len(code) >= 4 else code.zfill(4)
-        return f"{code}.HK"
+        return f"{_hk_share_code(code, padded=True)}.HK"
     if market == "MY":
         return f"{code}.KL"
     if market == "SG":
@@ -54,25 +91,75 @@ def yahoo_quote_symbol(symbol: str) -> str | None:
     return code
 
 
+def _q(value: str, safe: str = ".-") -> str:
+    return quote(value, safe=safe)
+
+
 def yahoo_quote_url(symbol: str) -> str:
     ysym = yahoo_quote_symbol(symbol)
     if not ysym:
         return ""
-    return f"https://finance.yahoo.com/quote/{quote(ysym, safe='.-')}"
+    return f"https://finance.yahoo.com/quote/{_q(ysym)}"
 
 
 def simplywall_url(symbol: str) -> str:
     market, code = _split_symbol(symbol)
     if not code:
         return ""
+    override = _SWS_URL_OVERRIDE.get(f"{market}.{code}" if market else code)
+    if override:
+        return override
     exchange = _SWS_EXCHANGE.get(market)
     if not exchange:
         return ""
-    ticker = code
-    if market == "HK" and code.isdigit():
-        ticker = str(int(code))
+    if market == "HK":
+        ticker = _hk_share_code(code, padded=False)
     elif market == "US":
         ticker = code.replace(".", "-").lower()
+    elif market == "MY":
+        ticker = _SWS_MY_TICKER.get(code, code).lower()
     else:
         ticker = code.lower()
-    return f"https://simplywall.st/stock/{exchange}/{quote(ticker, safe='.-')}"
+    return f"https://simplywall.st/stock/{exchange}/{_q(ticker)}"
+
+
+def google_finance_url(symbol: str) -> str:
+    market, code = _split_symbol(symbol)
+    if not code:
+        return ""
+    if market == "US":
+        ticker = code.replace(".", "-")
+        return f"https://www.google.com/finance/quote/{_q(ticker)}"
+    if market == "HK":
+        ticker = _hk_share_code(code, padded=True)
+    else:
+        ticker = code
+    suffix = _GOOGLE_EXCHANGE.get(market)
+    if not suffix:
+        return ""
+    return f"https://www.google.com/finance/quote/{_q(f'{ticker}:{suffix}', safe=':.-')}"
+
+
+def stockoracle_url(symbol: str) -> str:
+    """Stock Oracle covers US-listed names (e.g. BABA overview)."""
+    market, code = _split_symbol(symbol)
+    if market != "US" or not code:
+        return ""
+    ticker = code.replace(".", "-")
+    return f"https://app.stockoracle.com/stock-details/{_q(ticker)}/overview"
+
+
+def ticker_ext_links(symbol: str) -> list[dict[str, str]]:
+    """Icon-row sources for a ticker. Skip a source when its URL cannot be built."""
+    specs = (
+        ("yahoo", "Yahoo Finance", "finance.yahoo.com", yahoo_quote_url),
+        ("simplywall", "Simply Wall St", "simplywall.st", simplywall_url),
+        ("google", "Google Finance", "www.google.com", google_finance_url),
+        ("stockoracle", "Stock Oracle", "app.stockoracle.com", stockoracle_url),
+    )
+    links: list[dict[str, str]] = []
+    for sid, label, domain, builder in specs:
+        url = builder(symbol)
+        if url:
+            links.append({"id": sid, "label": label, "domain": domain, "url": url})
+    return links

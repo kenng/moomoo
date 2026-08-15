@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ticker_links.html" import ticker_ext_links %}
 {% block title %}Dividends — Momo{% endblock %}
 {% block head %}
 {% if not read_only and auto_sync %}
@@ -138,7 +139,9 @@
           <td>
             {% if d.stock_name or d.stock_code %}
             <div>{{ d.stock_name or d.stock_code }}</div>
-            {% if d.stock_code and d.stock_name %}<div class="meta" style="margin:0">{{ d.stock_code }}</div>{% endif %}
+            {% if d.stock_code and d.stock_name %}<div class="meta" style="margin:0">{{ d.stock_code }} {{
+              ticker_ext_links(d.stock_code) }}</div>{% elif d.stock_code %}{{ ticker_ext_links(d.stock_code) }}{% endif
+            %}
             {% else %}
             —
             {% endif %}
@@ -186,7 +189,9 @@
           <td>
             {% if d.stock_name or d.stock_code %}
             <div>{{ d.stock_name or d.stock_code }}</div>
-            {% if d.stock_code and d.stock_name %}<div class="meta" style="margin:0">{{ d.stock_code }}</div>{% endif %}
+            {% if d.stock_code and d.stock_name %}<div class="meta" style="margin:0">{{ d.stock_code }} {{
+              ticker_ext_links(d.stock_code) }}</div>{% elif d.stock_code %}{{ ticker_ext_links(d.stock_code) }}{% endif
+            %}
             {% else %}
             —
             {% endif %}

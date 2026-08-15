@@ -25,7 +25,7 @@ from filters import (
     parse_publish_time,
     render_markdown,
 )
-from ticker_urls import simplywall_url, yahoo_quote_url
+from ticker_urls import ticker_ext_links
 from r2_store import get_json, get_meta
 from template_sources import TEMPLATES
 
@@ -60,8 +60,7 @@ _jinja.filters["format_updated_at"] = format_updated_at
 _jinja.filters["format_short_date"] = format_short_date
 _jinja.filters["format_sort_key"] = format_sort_key
 _jinja.filters["markdown"] = render_markdown
-_jinja.filters["yahoo_quote_url"] = yahoo_quote_url
-_jinja.filters["simplywall_url"] = simplywall_url
+_jinja.filters["external_ticker_links"] = ticker_ext_links
 
 
 def _env(request: Request):

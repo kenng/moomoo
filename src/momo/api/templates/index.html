@@ -40,6 +40,12 @@
 
 {% if items_by_diff or groups %}
 <div id="targets-root" class="targets-root view-compact">
+  <div class="upside-legend" role="note" aria-label="Row colour legend for analyst upside">
+    <span class="upside-legend-label">Upside</span>
+    <span class="upside-legend-item upside-high">&gt; +10%</span>
+    <span class="upside-legend-item upside-mid">−10% to +10%</span>
+    <span class="upside-legend-item upside-low">≤ −10%</span>
+  </div>
   <section class="compact-only target-diff-section">
     <div class="weight-group-head">
       <h2>Latest vs 1 month ago</h2>

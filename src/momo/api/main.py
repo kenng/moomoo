@@ -16,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from momo.adapters.google_sheets import GoogleSheetsError
 from momo.api.auth import RequireLoginMiddleware, auth_enabled, verify_credentials
 from momo.config import bare_code, get_settings
-from momo.ticker_urls import simplywall_url, yahoo_quote_url
+from momo.ticker_urls import ticker_ext_links
 from momo.domain.ranking import format_publish_time, parse_publish_time
 from momo.opend_client import OpenDError
 from momo.services import (
@@ -228,8 +228,7 @@ templates.env.filters["format_updated_at"] = format_updated_at
 templates.env.filters["format_short_date"] = format_short_date
 templates.env.filters["format_sort_key"] = format_sort_key
 templates.env.filters["markdown"] = render_markdown
-templates.env.filters["yahoo_quote_url"] = yahoo_quote_url
-templates.env.filters["simplywall_url"] = simplywall_url
+templates.env.filters["external_ticker_links"] = ticker_ext_links
 templates.env.globals["auth_enabled"] = auth_enabled
 
 

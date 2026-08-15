@@ -1,4 +1,11 @@
-from momo.ticker_urls import simplywall_url, yahoo_quote_symbol, yahoo_quote_url
+from momo.ticker_urls import (
+    google_finance_url,
+    simplywall_url,
+    stockoracle_url,
+    ticker_ext_links,
+    yahoo_quote_symbol,
+    yahoo_quote_url,
+)
 
 
 def test_yahoo_quote_symbol_by_market():
@@ -20,9 +27,42 @@ def test_yahoo_quote_url():
 
 
 def test_simplywall_url():
-    assert simplywall_url("MY.1155") == "https://simplywall.st/stock/klse/1155"
+    assert simplywall_url("MY.1155") == "https://simplywall.st/stock/klse/maybank"
+    assert simplywall_url("MY.5176") == (
+        "https://simplywall.st/stocks/my/real-estate/klse-sunreit/"
+        "sunway-real-estate-investment-trust-shares"
+    )
     assert simplywall_url("HK.01810") == "https://simplywall.st/stock/sehk/1810"
     assert simplywall_url("HK.00700") == "https://simplywall.st/stock/sehk/700"
     assert simplywall_url("US.AAPL") == "https://simplywall.st/stock/nasdaqgs/aapl"
     assert simplywall_url("SG.D05") == "https://simplywall.st/stock/sgx/d05"
     assert simplywall_url("") == ""
+
+
+def test_google_finance_url():
+    assert google_finance_url("US.AAPL") == "https://www.google.com/finance/quote/AAPL"
+    assert google_finance_url("US.BABA") == "https://www.google.com/finance/quote/BABA"
+    assert google_finance_url("HK.01810") == "https://www.google.com/finance/quote/1810:HKG"
+    assert google_finance_url("MY.1155") == "https://www.google.com/finance/quote/1155:KLSE"
+    assert google_finance_url("") == ""
+
+
+def test_stockoracle_url_us_only():
+    assert stockoracle_url("US.BABA") == (
+        "https://app.stockoracle.com/stock-details/BABA/overview"
+    )
+    assert stockoracle_url("US.AAPL") == (
+        "https://app.stockoracle.com/stock-details/AAPL/overview"
+    )
+    assert stockoracle_url("HK.09988") == ""
+    assert stockoracle_url("MY.1155") == ""
+
+
+def test_ticker_ext_links_order_and_skip():
+    us = ticker_ext_links("US.BABA")
+    assert [x["id"] for x in us] == ["yahoo", "simplywall", "google", "stockoracle"]
+    assert us[-1]["url"].endswith("/stock-details/BABA/overview")
+
+    my = ticker_ext_links("MY.1155")
+    assert [x["id"] for x in my] == ["yahoo", "simplywall", "google"]
+    assert ticker_ext_links("") == []
