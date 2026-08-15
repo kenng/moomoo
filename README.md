@@ -2,6 +2,46 @@
 
 Helpers around Moomoo OpenD: quote smoke tests, watchlist news digest, and a small local web UI. Defaults to **HK** trading symbols; MY (Bursa) and other markets are supported via prefix or `market` on each watchlist entry.
 
+## Commands
+
+Cloudflare: 
+```bash
+# Export read-only digest to R2 for the Worker mirror
+momo publish
+momo publish --dry-run
+
+# Deploy the Cloudflare Worker (then publish data)
+./worker/deploy.sh
+```
+
+```bash
+# Daily — pull watchlist news into the local DB (OpenD must be running)
+momo refresh --watchlist
+
+# Daily — pull consensus / institution price targets for open positions
+momo refresh --targets
+
+# Daily — local UI at http://127.0.0.1:8000 (`-w` refreshes news first)
+./start.sh
+./start.sh -w
+
+# Verify OpenD + quote rights
+momo smoke --code 1810
+momo smoke --code HK.1810
+momo smoke --code 1155 --market MY
+
+# Watchlist
+momo watchlist
+
+# Refresh a single symbol
+momo refresh --code 1810
+
+# Show cached digest
+momo news --watchlist
+momo news --code 1810 --json
+
+```
+
 ## Requirements
 
 - Python 3.11+
@@ -56,35 +96,9 @@ stocks:
 
 Or use a prefixed code (`HK.01810`, `MY.1155`) and omit `market`.
 
-## CLI
-
-```bash
-# Verify OpenD + quote rights for a symbol
-momo smoke --code 1810
-momo smoke --code HK.1810
-momo smoke --code 1155 --market MY
-
-# Watchlist
-momo watchlist
-
-# Pull news from OpenD into the local DB
-momo refresh --watchlist
-momo refresh --code 1810
-
-# Show cached digest
-momo news --watchlist
-momo news --code 1810 --json
-```
-
 ## Web UI
 
-With the venv active and OpenD up:
-
-```bash
-uvicorn momo.api.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Open http://127.0.0.1:8000 — home shows the watchlist digest; stock pages support refresh.
+`./start.sh` runs uvicorn with the venv active (`--reload --host 127.0.0.1 --port 8000`). Open http://127.0.0.1:8000 — home shows the watchlist digest; stock pages support refresh.
 
 ## Project layout
 

@@ -33,10 +33,17 @@ def main(argv: list[str] | None = None) -> int:
     p_news.add_argument("--json", action="store_true", help="JSON output")
     p_news.add_argument("--limit", type=int, default=None)
 
-    p_refresh = sub.add_parser("refresh", help="Fetch news from OpenD into cache")
+    p_refresh = sub.add_parser(
+        "refresh", help="Fetch news or analyst price targets into cache"
+    )
     p_refresh.add_argument("--code", help="Single stock code")
     p_refresh.add_argument("--market", default=None, help="Market for bare codes")
     p_refresh.add_argument("--watchlist", action="store_true", help="Refresh all watchlist")
+    p_refresh.add_argument(
+        "--targets",
+        action="store_true",
+        help="Refresh consensus / institution price targets for open positions",
+    )
     p_refresh.add_argument("--json", action="store_true")
 
     p_wl = sub.add_parser("watchlist", help="List configured watchlist")
@@ -117,6 +124,9 @@ def _cmd_news(args) -> int:
 
 
 def _cmd_refresh(args) -> int:
+    if args.targets:
+        return _cmd_refresh_targets(args)
+
     if args.code:
         stock = resolve_stock(args.code, market=args.market)
         results = [news_digest.refresh_stock_news(stock)]
@@ -141,6 +151,25 @@ def _cmd_refresh(args) -> int:
         for n in r.get("news", [])[:5]:
             print(f"  [{n['importance_score']}] {n['title'][:100]}")
     return 0
+
+
+def _cmd_refresh_targets(args) -> int:
+    from momo.services import price_targets
+
+    result = price_targets.refresh_watchlist_targets()
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0 if result.get("ok") else 1
+
+    print(
+        f"targets: source={result.get('source')} "
+        f"symbols={result.get('symbols')} "
+        f"consensus={result.get('refreshed')} "
+        f"institutions={result.get('institution_rows')}"
+    )
+    for err in result.get("errors") or []:
+        print(f"  error: {err}", file=sys.stderr)
+    return 0 if result.get("ok") else 1
 
 
 def _cmd_publish(args) -> int:
