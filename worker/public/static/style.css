@@ -683,6 +683,13 @@ button.secondary,
   white-space: pre-wrap;
 }
 
+.ai-summary-ratings {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
 .ai-summary-sections {
   list-style: none;
   margin: 0.4rem 0 0;
@@ -838,11 +845,131 @@ button.secondary,
 
 .ai-summary-actions {
   margin-top: 0.55rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
 }
 
 .ai-summary-actions button {
   padding: 0.35rem 0.75rem;
   font-size: 0.85rem;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.ai-summary-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(28, 26, 22, 0.45);
+}
+
+.ai-summary-modal[hidden] {
+  display: none;
+}
+
+.ai-summary-modal-panel {
+  width: min(1100px, 100%);
+  max-height: min(92vh, 920px);
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(28, 26, 22, 0.22);
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.ai-summary-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.ai-summary-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.ai-summary-modal-hint {
+  margin: 0 0 0.85rem;
+}
+
+.ai-summary-modal-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+@media (min-width: 900px) {
+  .ai-summary-modal-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+    min-height: 420px;
+  }
+}
+
+.ai-summary-modal-editor,
+.ai-summary-modal-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 0;
+}
+
+.ai-summary-modal-editor textarea {
+  width: 100%;
+  flex: 1;
+  min-height: 280px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+  font: 0.86rem/1.45 var(--mono);
+  color: var(--ink);
+  background: #fff;
+}
+
+.ai-summary-modal-preview-wrap .ai-summary-full {
+  flex: 1;
+  min-height: 280px;
+  max-height: 55vh;
+  overflow: auto;
+  margin: 0;
+}
+
+.ai-summary-modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.95rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.ai-summary-modal-footer-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.ai-summary-modal-status {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.ai-summary-modal-status.is-error {
+  color: var(--down);
 }
 
 .view-toggle {
