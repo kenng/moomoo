@@ -42,3 +42,4 @@ worker/node_modules/
 worker/.wrangler/
 worker/.venv/
 worker/uv.lock
+.devdbrc

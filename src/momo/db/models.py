@@ -174,3 +174,19 @@ class InstitutionPriceTarget(Base):
     rating_url: Mapped[str] = mapped_column(Text, default="")
     update_time_str: Mapped[str] = mapped_column(String(32), default="")
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class StockOracleValuation(Base):
+    """Cached Stock Oracle moat / OracleValue for a US-listed symbol."""
+
+    __tablename__ = "stock_oracle_valuations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    stock_code: Mapped[str] = mapped_column(String(16), index=True)
+    stock_name: Mapped[str] = mapped_column(String(128), default="")
+    moat: Mapped[str] = mapped_column(String(16), default="")
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str] = mapped_column(String(8), default="")
+    assess_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

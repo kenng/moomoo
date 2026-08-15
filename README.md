@@ -21,6 +21,9 @@ momo refresh --news
 # Daily — pull consensus / institution price targets for open positions
 momo refresh --targets
 
+# Stock Oracle valuations (US names only; does not refresh analyst targets)
+momo refresh --targets --oracle
+
 # Daily — local UI at http://127.0.0.1:8000 (`-w` refreshes news first)
 ./start.sh
 ./start.sh -w

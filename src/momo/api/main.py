@@ -26,6 +26,7 @@ from momo.services import (
     order_history,
     price_targets,
     sheets_sync,
+    stock_oracle,
 )
 from momo.watchlist import load_watchlist, resolve_stock
 
@@ -665,6 +666,24 @@ def refresh_targets():
         return blocked
     try:
         result = price_targets.refresh_watchlist_targets()
+    except OpenDError as exc:
+        return RedirectResponse(
+            url=f"/?error={quote(str(exc))}", status_code=303
+        )
+    if result.get("errors"):
+        msg = "; ".join(result["errors"][:3])
+        return RedirectResponse(
+            url=f"/?error={quote(msg)}", status_code=303
+        )
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/refresh-oracle")
+def refresh_oracle():
+    if (blocked := _reject_if_read_only("/")) is not None:
+        return blocked
+    try:
+        result = stock_oracle.refresh_watchlist_oracle()
     except OpenDError as exc:
         return RedirectResponse(
             url=f"/?error={quote(str(exc))}", status_code=303

@@ -14,6 +14,7 @@ from momo.db.models import (
     PriceTargetConsensus,
     PriceTargetConsensusHistory,
     QuoteSnapshot,
+    StockOracleValuation,
 )
 from momo.domain.ranking import NEWS_RETENTION_DAYS, news_is_fresh
 
@@ -526,3 +527,34 @@ def latest_price_target_fetched_at(
         .limit(1)
     )
     return next(iter(rows), None)
+
+
+def upsert_stock_oracle_valuation(
+    session: Session, item: dict
+) -> StockOracleValuation:
+    now = datetime.utcnow()
+    symbol = item["symbol"]
+    existing = session.scalar(
+        select(StockOracleValuation).where(StockOracleValuation.symbol == symbol)
+    )
+    fields = {
+        "stock_code": item.get("stock_code", ""),
+        "stock_name": item.get("stock_name", ""),
+        "moat": item.get("moat") or "",
+        "value": item.get("value"),
+        "currency": item.get("currency") or "",
+        "assess_pct": item.get("assess_pct"),
+    }
+    if existing:
+        for key, val in fields.items():
+            setattr(existing, key, val)
+        existing.fetched_at = now
+        session.commit()
+        session.refresh(existing)
+        return existing
+    row = StockOracleValuation(symbol=symbol, fetched_at=now, **fields)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+

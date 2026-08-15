@@ -44,6 +44,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Refresh consensus / institution price targets for open positions",
     )
+    p_refresh.add_argument(
+        "--oracle",
+        action="store_true",
+        help="With --targets: refresh Stock Oracle valuations (US names only)",
+    )
     p_refresh.add_argument("--json", action="store_true")
 
     p_wl = sub.add_parser("watchlist", help="List configured watchlist")
@@ -124,6 +129,11 @@ def _cmd_news(args) -> int:
 
 
 def _cmd_refresh(args) -> int:
+    if args.oracle and not args.targets:
+        print("use: momo refresh --targets --oracle", file=sys.stderr)
+        return 2
+    if args.targets and args.oracle:
+        return _cmd_refresh_oracle(args)
     if args.targets:
         return _cmd_refresh_targets(args)
 
@@ -151,6 +161,25 @@ def _cmd_refresh(args) -> int:
         for n in r.get("news", [])[:5]:
             print(f"  [{n['importance_score']}] {n['title'][:100]}")
     return 0
+
+
+def _cmd_refresh_oracle(args) -> int:
+    from momo.services import stock_oracle
+
+    result = stock_oracle.refresh_watchlist_oracle()
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0 if result.get("ok") else 1
+
+    print(
+        f"oracle: source={result.get('source')} "
+        f"us_symbols={result.get('symbols')} "
+        f"refreshed={result.get('refreshed')} "
+        f"skipped={result.get('skipped')}"
+    )
+    for err in result.get("errors") or []:
+        print(f"  error: {err}", file=sys.stderr)
+    return 0 if result.get("ok") else 1
 
 
 def _cmd_refresh_targets(args) -> int:
