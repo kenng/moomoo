@@ -16,7 +16,7 @@ momo publish --dry-run
 
 ```bash
 # Daily — pull watchlist news into the local DB (OpenD must be running)
-momo refresh --watchlist
+momo refresh --news
 
 # Daily — pull consensus / institution price targets for open positions
 momo refresh --targets

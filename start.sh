@@ -4,7 +4,7 @@ source .venv/bin/activate
 
 while getopts "w" opt; do
   case $opt in
-    w) momo refresh --watchlist ;;
+    w) momo refresh --news ;;
   esac
 done
 

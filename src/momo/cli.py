@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_refresh.add_argument("--code", help="Single stock code")
     p_refresh.add_argument("--market", default=None, help="Market for bare codes")
-    p_refresh.add_argument("--watchlist", action="store_true", help="Refresh all watchlist")
+    p_refresh.add_argument("--news", action="store_true", help="Refresh watchlist news")
     p_refresh.add_argument(
         "--targets",
         action="store_true",
@@ -221,7 +221,7 @@ def _print_digest(item: dict) -> None:
         )
     news = item.get("news") or []
     if not news:
-        print("  (no cached news — run: momo refresh --watchlist)")
+        print("  (no cached news — run: momo refresh --news)")
         return
     for n in news:
         print(
