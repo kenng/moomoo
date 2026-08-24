@@ -149,12 +149,31 @@ def stockoracle_url(symbol: str) -> str:
     return f"https://app.stockoracle.com/stock-details/{_q(ticker)}/overview"
 
 
+def tipranks_url(symbol: str) -> str:
+    """TipRanks stock pages: US ticker, or {cc}:{code} for HK/SG/JP."""
+    market, code = _split_symbol(symbol)
+    if not code:
+        return ""
+    if market == "US":
+        ticker = code.lower()
+    elif market == "HK":
+        ticker = f"hk:{_hk_share_code(code, padded=True)}"
+    elif market == "SG":
+        ticker = f"sg:{code.lower()}"
+    elif market == "JP":
+        ticker = f"jp:{code.lower()}"
+    else:
+        return ""
+    return f"https://www.tipranks.com/stocks/{_q(ticker, safe=':.-')}"
+
+
 def ticker_ext_links(symbol: str) -> list[dict[str, str]]:
     """Icon-row sources for a ticker. Skip a source when its URL cannot be built."""
     specs = (
         ("yahoo", "Yahoo Finance", "finance.yahoo.com", yahoo_quote_url),
         ("simplywall", "Simply Wall St", "simplywall.st", simplywall_url),
         ("google", "Google Finance", "www.google.com", google_finance_url),
+        ("tipranks", "TipRanks", "www.tipranks.com", tipranks_url),
         ("stockoracle", "Stock Oracle", "app.stockoracle.com", stockoracle_url),
     )
     links: list[dict[str, str]] = []

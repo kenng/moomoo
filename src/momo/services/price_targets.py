@@ -13,6 +13,7 @@ from momo.db.repo import (
     list_institution_targets_for_symbols,
     list_month_ago_consensus_for_symbols,
     list_price_target_consensus_for_symbols,
+    list_stock_oracle_valuations_for_symbols,
     replace_institution_targets,
     save_snapshot,
     upsert_price_target_consensus,
@@ -374,6 +375,25 @@ def _upside_pct(average: float | None, last_price: float | None) -> float | None
     return ((average - last_price) / last_price) * 100.0
 
 
+def _oracle_hover_text(oracle) -> str:
+    parts = ["OracleValue"]
+    if oracle is None:
+        return parts[0]
+    if oracle.currency:
+        parts.append(oracle.currency)
+    if oracle.moat:
+        parts.append(f"{oracle.moat} moat")
+    if oracle.assess_pct is not None:
+        pct = abs(oracle.assess_pct)
+        if oracle.assess_pct < 0:
+            parts.append(f"{pct:.1f}% undervalued")
+        elif oracle.assess_pct > 0:
+            parts.append(f"{pct:.1f}% overvalued")
+        else:
+            parts.append("fairly valued")
+    return " · ".join(parts)
+
+
 def _target_diff(
     latest_avg: float | None, month_ago_avg: float | None
 ) -> tuple[float | None, float | None]:
@@ -480,6 +500,7 @@ def get_watchlist_price_targets(
         consensus_map = list_price_target_consensus_for_symbols(session, symbols)
         month_ago_map = list_month_ago_consensus_for_symbols(session, symbols)
         institution_map = list_institution_targets_for_symbols(session, symbols)
+        oracle_map = list_stock_oracle_valuations_for_symbols(session, symbols)
         last_updated = latest_price_target_fetched_at(session, symbols)
         items = []
         for stock in stocks:
@@ -503,6 +524,9 @@ def get_watchlist_price_targets(
             month_avg = month_ago_dict["average"] if month_ago_dict else None
             target_diff, target_diff_pct = _target_diff(avg, month_avg)
             cost = stock.get("average_cost")
+            oracle = oracle_map.get(symbol)
+            oracle_value = oracle.value if oracle else None
+            oracle_tip = _oracle_hover_text(oracle) if oracle else ""
             items.append(
                 {
                     "symbol": symbol,
@@ -530,6 +554,9 @@ def get_watchlist_price_targets(
                     "target_diff": target_diff,
                     "target_diff_pct": target_diff_pct,
                     "upside_pct": _upside_pct(avg, last_price),
+                    "oracle_value": oracle_value,
+                    "oracle_upside_pct": _upside_pct(oracle_value, last_price),
+                    "oracle_tip": oracle_tip,
                     "vs_cost_pct": _upside_pct(last_price, cost),
                     "institutions": institutions,
                     "fetched_at": consensus.fetched_at if consensus else None,

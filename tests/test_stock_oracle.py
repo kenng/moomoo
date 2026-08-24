@@ -10,7 +10,9 @@ from momo.adapters.stock_oracle import (
     parse_oracle_overview,
 )
 from momo.cli import main
+from momo.db.repo import list_stock_oracle_valuations_for_symbols
 from momo.services import stock_oracle
+from momo.services.price_targets import _oracle_hover_text, _upside_pct
 
 
 SAMPLE_OVERVIEW = "Wide Moat OracleValue™ USD 208.69 20.56% Undervalued"
@@ -164,6 +166,23 @@ def test_fetch_overview_html_uses_headless_page():
     assert "css-klawuc" in html
     assert "OracleValue" in html
     assert "20.56% Undervalued" in html
+
+
+def test_list_oracle_valuations_empty_symbols():
+    assert list_stock_oracle_valuations_for_symbols(None, []) == {}
+
+
+def test_oracle_upside_uses_value_vs_last():
+    assert round(_upside_pct(208.69, 173.0), 1) == 20.6
+
+
+def test_oracle_hover_text_includes_moat_and_assess():
+    class Row:
+        currency = "USD"
+        moat = "wide"
+        assess_pct = -20.56
+
+    assert _oracle_hover_text(Row()) == "OracleValue · USD · wide moat · 20.6% undervalued"
 
 
 def test_refresh_oracle_fetches_us_only():

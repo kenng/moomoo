@@ -2,12 +2,19 @@
 {%- set links = symbol|external_ticker_links -%}
 {%- if links -%}
 <span class="ticker-ext">
-  {%- for link in links -%}
-  <a class="ticker-ext-icon" href="{{ link.url }}" target="_blank" rel="noopener noreferrer" title="{{ link.label }}"
-    aria-label="{{ link.label }}">
-    <img src="https://www.google.com/s2/favicons?domain={{ link.domain }}&sz=64" alt="" width="16" height="16" />
-  </a>
-  {%- endfor -%}
+  <label class="ticker-ext-toggle" title="External links">
+    <input type="checkbox" class="visually-hidden" />
+    <span aria-hidden="true">↗</span>
+    <span class="visually-hidden">Show external links</span>
+  </label>
+  <span class="ticker-ext-list">
+    {%- for link in links -%}
+    <a class="ticker-ext-icon" href="{{ link.url }}" target="_blank" rel="noopener noreferrer" title="{{ link.label }}"
+      aria-label="{{ link.label }}">
+      <img src="https://www.google.com/s2/favicons?domain={{ link.domain }}&sz=64" alt="" width="16" height="16" />
+    </a>
+    {%- endfor -%}
+  </span>
 </span>
 {%- endif -%}
 {% endmacro %}

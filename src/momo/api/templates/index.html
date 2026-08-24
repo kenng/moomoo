@@ -123,8 +123,10 @@
             data-rating_rank="{{ c.rating if c and c.rating is not none else '' }}"
             data-queried="{{ item.fetched_at|format_sort_key }}">
             <td>
-              <a href="/stock/{{ item.symbol }}">{{ item.symbol }}</a>
-              {{ ticker_ext_links(item.symbol) }}
+              <div class="ticker-sym">
+                <a href="/stock/{{ item.symbol }}">{{ item.symbol }}</a>
+                {{ ticker_ext_links(item.symbol) }}
+              </div>
               <div class="meta">
                 {{ item.name }}{% if item.option_contracts %} · {{ item.option_contracts }} opt{% endif %}
               </div>
@@ -145,6 +147,8 @@
               {% else %}—{% endif %}
             </td>
             <td class="num">{% if c and c.average is not none %}{{ '%.2f'|format(c.average) }}{% else %}—{% endif %}
+              {% if item.oracle_value is not none %}<div class="meta oracle-tip" data-tip="{{ item.oracle_tip }}"
+                title="{{ item.oracle_tip }}">{{ '%.2f'|format(item.oracle_value) }}</div>{% endif %}
             </td>
             <td class="num">{% if m and m.average is not none %}{{ '%.2f'|format(m.average) }}{% else %}—{% endif %}
             </td>
@@ -154,7 +158,11 @@
             </td>
             <td
               class="num {% if item.upside_pct is not none %}{% if item.upside_pct >= 0 %}up{% else %}down{% endif %}{% endif %}">
-              {% if item.upside_pct is not none %}{{ '%+.1f'|format(item.upside_pct) }}{% else %}—{% endif %}
+              {% if item.upside_pct is not none %}{{ '%+.1f'|format(item.upside_pct) }}%{% else %}—{% endif %}
+              {% if item.oracle_upside_pct is not none %}<div
+                class="meta oracle-tip {% if item.oracle_upside_pct >= 0 %}up{% else %}down{% endif %}"
+                data-tip="{{ item.oracle_tip }}" title="{{ item.oracle_tip }}">{{
+                '%+.1f'|format(item.oracle_upside_pct) }}%</div>{% endif %}
             </td>
             <td class="rating-cell" title="{{ rating or '' }}">
               {% if rating == 'Strong Buy' %}<span class="rating-tag rating-sb">SB</span>
@@ -204,7 +212,7 @@
           <div class="target-head">
             <div>
               <h2><a href="/stock/{{ item.symbol }}">{{ item.name }}</a></h2>
-              <div class="meta">
+              <div class="meta ticker-sym">
                 {{ item.symbol }}{% if item.option_contracts %} · {{ item.option_contracts }} option{% if
                 item.option_contracts != 1 %}s{% endif %}{% endif %}
                 {{ ticker_ext_links(item.symbol) }}

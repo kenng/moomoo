@@ -641,13 +641,62 @@ button.secondary,
   margin: 0.15rem 0 0;
 }
 
+.ticker-sym {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.25rem;
+  row-gap: 0.2rem;
+}
+
 .ticker-ext {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.2rem;
-  margin-left: 0.35rem;
+  margin-left: 0.2rem;
   vertical-align: middle;
+}
+
+.ticker-sym .ticker-ext {
+  display: contents;
+  margin-left: 0;
+}
+
+.ticker-ext-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.ticker-ext:has(:checked) .ticker-ext-toggle {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ticker-ext-list {
+  display: none;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.ticker-ext:has(:checked) .ticker-ext-list {
+  display: flex;
 }
 
 .ticker-ext-icon {
@@ -1293,12 +1342,38 @@ button.chip.active {
   opacity: 0.9;
 }
 
-.targets-table-compact .cost-cell .meta.up {
+.targets-table-compact .cost-cell .meta.up,
+.targets-table-compact td.num .meta.up {
   color: var(--up);
 }
 
-.targets-table-compact .cost-cell .meta.down {
+.targets-table-compact .cost-cell .meta.down,
+.targets-table-compact td.num .meta.down {
   color: var(--down);
+}
+
+.targets-table-compact .oracle-tip {
+  position: relative;
+  cursor: help;
+}
+
+.targets-table-compact .oracle-tip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.28rem);
+  transform: translateX(-50%);
+  z-index: 6;
+  white-space: nowrap;
+  padding: 0.22rem 0.45rem;
+  border-radius: 4px;
+  background: #2c2a26;
+  color: #f7f3e9;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.3;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
 .orders-table td.up,

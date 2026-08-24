@@ -1,7 +1,15 @@
+from unittest.mock import patch
+
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+
+from momo.db.models import Base, QuoteSnapshot
+from momo.db.repo import latest_snapshot, save_snapshot
 from momo.services.price_targets import (
     _attach_weights,
     _group_by_weight,
     aggregate_positions_for_targets,
+    refresh_watchlist_targets,
 )
 
 
@@ -124,3 +132,82 @@ def test_option_only_weight_band():
     assert "Options only" in labels
     opt_group = next(g for g in groups if g["label"] == "Options only")
     assert [i["symbol"] for i in opt_group["items"]] == ["US.QCOM"]
+
+
+def test_refresh_targets_updates_quote_snapshot_last_price():
+    stocks = [
+        {
+            "symbol": "HK.09988",
+            "code": "09988",
+            "name": "BABA-W",
+            "market": "HK",
+        }
+    ]
+    snap = {
+        "symbol": "HK.09988",
+        "stock_code": "09988",
+        "last_price": 122.4,
+        "change_rate": -1.5,
+        "volume": 1.0,
+        "turnover": 2.0,
+    }
+
+    with (
+        patch(
+            "momo.services.price_targets._stocks_for_targets",
+            return_value=(stocks, {"source": "watchlist"}),
+        ),
+        patch(
+            "momo.services.price_targets.quote_adapter.get_snapshots",
+            return_value=[snap],
+        ) as get_snaps,
+        patch("momo.services.price_targets.save_snapshot") as save,
+        patch(
+            "momo.services.price_targets.research_adapter.get_analyst_consensus",
+            return_value=None,
+        ),
+        patch(
+            "momo.services.price_targets.research_adapter.get_institution_targets",
+            return_value=[],
+        ),
+        patch(
+            "momo.services.price_targets.replace_institution_targets",
+            return_value=0,
+        ),
+        patch("momo.services.price_targets.get_session") as session,
+    ):
+        session.return_value.__enter__.return_value = object()
+        result = refresh_watchlist_targets()
+
+    get_snaps.assert_called_once_with(["HK.09988"])
+    save.assert_called_once()
+    stored = save.call_args.args[1]
+    assert stored["symbol"] == "HK.09988"
+    assert stored["last_price"] == 122.4
+    assert result["ok"] is True
+
+
+def test_save_snapshot_updates_existing_last_price():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    row = {
+        "symbol": "HK.09988",
+        "stock_code": "09988",
+        "last_price": 119.9,
+        "change_rate": 0.0,
+        "volume": 1.0,
+        "turnover": 1.0,
+    }
+    save_snapshot(session, row)
+    save_snapshot(
+        session,
+        {**row, "last_price": 122.4, "change_rate": -1.5},
+    )
+    rows = list(session.scalars(select(QuoteSnapshot)))
+    assert len(rows) == 1
+    snap = latest_snapshot(session, "HK.09988")
+    assert snap is not None
+    assert snap.last_price == 122.4
+    assert snap.change_rate == -1.5
+    session.close()

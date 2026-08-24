@@ -84,6 +84,16 @@ def delete_news_older_than(session: Session, *, cutoff: datetime) -> int:
 
 
 def save_snapshot(session: Session, snapshot: dict) -> None:
+    existing = latest_snapshot(session, snapshot["symbol"])
+    if existing:
+        existing.stock_code = snapshot.get("stock_code", existing.stock_code)
+        existing.last_price = snapshot.get("last_price")
+        existing.change_rate = snapshot.get("change_rate")
+        existing.volume = snapshot.get("volume")
+        existing.turnover = snapshot.get("turnover")
+        existing.fetched_at = datetime.utcnow()
+        session.commit()
+        return
     session.add(QuoteSnapshot(**snapshot))
     session.commit()
 
@@ -491,6 +501,17 @@ def list_price_target_consensus_for_symbols(
         return {}
     rows = session.scalars(
         select(PriceTargetConsensus).where(PriceTargetConsensus.symbol.in_(symbols))
+    )
+    return {row.symbol: row for row in rows}
+
+
+def list_stock_oracle_valuations_for_symbols(
+    session: Session, symbols: list[str]
+) -> dict[str, StockOracleValuation]:
+    if not symbols:
+        return {}
+    rows = session.scalars(
+        select(StockOracleValuation).where(StockOracleValuation.symbol.in_(symbols))
     )
     return {row.symbol: row for row in rows}
 

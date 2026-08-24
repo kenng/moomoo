@@ -3,6 +3,7 @@ from momo.ticker_urls import (
     simplywall_url,
     stockoracle_url,
     ticker_ext_links,
+    tipranks_url,
     yahoo_quote_symbol,
     yahoo_quote_url,
 )
@@ -58,9 +59,26 @@ def test_stockoracle_url_us_only():
     assert stockoracle_url("MY.1155") == ""
 
 
+def test_tipranks_url():
+    assert tipranks_url("US.AAPL") == "https://www.tipranks.com/stocks/aapl"
+    assert tipranks_url("US.BRK.B") == "https://www.tipranks.com/stocks/brk.b"
+    assert tipranks_url("HK.00700") == "https://www.tipranks.com/stocks/hk:0700"
+    assert tipranks_url("HK.01810") == "https://www.tipranks.com/stocks/hk:1810"
+    assert tipranks_url("SG.D05") == "https://www.tipranks.com/stocks/sg:d05"
+    assert tipranks_url("JP.7203") == "https://www.tipranks.com/stocks/jp:7203"
+    assert tipranks_url("MY.1155") == ""
+    assert tipranks_url("") == ""
+
+
 def test_ticker_ext_links_order_and_skip():
     us = ticker_ext_links("US.BABA")
-    assert [x["id"] for x in us] == ["yahoo", "simplywall", "google", "stockoracle"]
+    assert [x["id"] for x in us] == [
+        "yahoo",
+        "simplywall",
+        "google",
+        "tipranks",
+        "stockoracle",
+    ]
     assert us[-1]["url"].endswith("/stock-details/BABA/overview")
 
     my = ticker_ext_links("MY.1155")
