@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     p_refresh.add_argument(
         "--oracle",
         action="store_true",
-        help="With --targets: refresh Stock Oracle valuations (US names only)",
+        help="With --targets: refresh Stock Oracle from the watchlist (no OpenD)",
     )
     p_refresh.add_argument("--json", action="store_true")
 

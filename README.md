@@ -21,7 +21,7 @@ momo refresh --news
 # Daily — pull consensus / institution price targets for open positions
 momo refresh --targets
 
-# Stock Oracle valuations (US names only; does not refresh analyst targets)
+# Stock Oracle valuations (US watchlist names; no OpenD; does not refresh analyst targets)
 momo refresh --targets --oracle
 
 # Daily — local UI at http://127.0.0.1:8000 (`-w` refreshes news first)
@@ -57,6 +57,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 # or: pip install -r requirements.txt && pip install -e .
+playwright install chromium  # Stock Oracle refresh (`--targets --oracle`)
 ```
 
 Copy or edit `.env` as needed:
@@ -69,6 +70,7 @@ Copy or edit `.env` as needed:
 | `ALLOW_LIVE_TRADING` | `false` | Must be `true` with `TRADING_MODE=live` for live |
 | `WATCHLIST_PATH` | `watchlist.yaml` | Watchlist file |
 | `DATABASE_URL` | `sqlite:///./data/momo.db` | News/snapshot cache |
+| `ACCOUNT_STOCK_ORACLE_USERNAME` / `ACCOUNT_STOCK_ORACLE_PASSWORD` | empty | Stock Oracle login for `--targets --oracle` |
 
 ## Symbols
 

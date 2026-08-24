@@ -682,12 +682,7 @@ def refresh_targets():
 def refresh_oracle():
     if (blocked := _reject_if_read_only("/")) is not None:
         return blocked
-    try:
-        result = stock_oracle.refresh_watchlist_oracle()
-    except OpenDError as exc:
-        return RedirectResponse(
-            url=f"/?error={quote(str(exc))}", status_code=303
-        )
+    result = stock_oracle.refresh_watchlist_oracle()
     if result.get("errors"):
         msg = "; ".join(result["errors"][:3])
         return RedirectResponse(

@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     auth_password: str = ""
     session_secret: str = ""
 
+    # Stock Oracle app login (required for `momo refresh --targets --oracle`)
+    account_stock_oracle_username: str = ""
+    account_stock_oracle_password: str = ""
+
     # UI hosting mode: local (refresh/AI) | cloudflare (read-only R2 mirror)
     momo_ui_mode: Literal["local", "cloudflare"] = "local"
 

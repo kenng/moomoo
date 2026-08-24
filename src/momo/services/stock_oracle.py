@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import logging
 
-from momo.adapters.stock_oracle import StockOracleError, get_oracle_valuation
+from momo.adapters.stock_oracle import (
+    StockOracleError,
+    get_oracle_valuation,
+    oracle_browser_page,
+)
 from momo.db.repo import upsert_stock_oracle_valuation
 from momo.db.session import get_session
-from momo.services.price_targets import _stocks_for_targets
+from momo.watchlist import load_watchlist
 
 logger = logging.getLogger(__name__)
 
@@ -18,23 +22,29 @@ def _market_of(stock: dict) -> str:
     return market
 
 
-def refresh_watchlist_oracle(
-    *,
-    acc_id: int | None = None,
-    trd_env: str | None = None,
-) -> dict:
-    """Fetch Stock Oracle valuations for US names in the targets universe."""
-    stocks, meta = _stocks_for_targets(acc_id=acc_id, trd_env=trd_env)
+def refresh_watchlist_oracle() -> dict:
+    """Fetch Stock Oracle valuations for US names on the local watchlist (no OpenD)."""
+    stocks = load_watchlist()
     us_stocks = [s for s in stocks if _market_of(s) == "US"]
     skipped = len(stocks) - len(us_stocks)
     refreshed = 0
     errors: list[str] = []
 
-    with get_session() as session:
+    if not us_stocks:
+        return {
+            "ok": True,
+            "refreshed": 0,
+            "skipped": skipped,
+            "errors": errors,
+            "source": "watchlist",
+            "symbols": 0,
+        }
+
+    with get_session() as session, oracle_browser_page() as page:
         for stock in us_stocks:
             symbol = stock["symbol"]
             try:
-                valuation = get_oracle_valuation(symbol)
+                valuation = get_oracle_valuation(symbol, page=page)
             except (StockOracleError, ValueError) as exc:
                 logger.warning("stock oracle refresh failed for %s: %s", symbol, exc)
                 errors.append(f"{symbol}: {exc}")
@@ -57,6 +67,6 @@ def refresh_watchlist_oracle(
         "refreshed": refreshed,
         "skipped": skipped,
         "errors": errors,
-        "source": meta.get("source"),
+        "source": "watchlist",
         "symbols": len(us_stocks),
     }
