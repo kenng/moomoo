@@ -23,9 +23,6 @@ stocks:
   - code: "1066"
     market: MY
     name: RHBBANK
-      - code: "6139"
-    market: MY
-    name: TAKAFUL
   - code: "5318"
     market: MY
     name: DXN
