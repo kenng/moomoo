@@ -15,6 +15,7 @@ from momo.db.models import (
     PriceTargetConsensusHistory,
     QuoteSnapshot,
     StockOracleValuation,
+    StrategyCheck,
 )
 from momo.domain.ranking import NEWS_RETENTION_DAYS, news_is_fresh
 
@@ -578,4 +579,33 @@ def upsert_stock_oracle_valuation(
     session.commit()
     session.refresh(row)
     return row
+
+
+def save_strategy_check(session: Session, item: dict) -> StrategyCheck:
+    row = StrategyCheck(
+        symbol=item["symbol"],
+        stock_code=item.get("stock_code") or "",
+        stock_name=item.get("stock_name") or "",
+        strategy=item["strategy"],
+        conclusion=item.get("conclusion") or "",
+        penalty=int(item.get("penalty") or 0),
+        conditions_json=item.get("conditions_json") or "[]",
+        fetched_at=item.get("fetched_at") or datetime.utcnow(),
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def list_recent_strategy_checks(
+    session: Session, limit: int = 20
+) -> list[StrategyCheck]:
+    return list(
+        session.scalars(
+            select(StrategyCheck)
+            .order_by(StrategyCheck.fetched_at.desc(), StrategyCheck.id.desc())
+            .limit(limit)
+        )
+    )
 

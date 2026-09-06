@@ -27,6 +27,7 @@ from momo.services import (
     price_targets,
     sheets_sync,
     stock_oracle,
+    strategy_timing,
 )
 from momo.watchlist import load_watchlist, resolve_stock
 
@@ -610,6 +611,16 @@ def dividends_page(
         "dividends.html",
         {**data, "error": error},
     )
+
+
+@app.get("/strategies", response_class=HTMLResponse)
+def strategies_page(
+    request: Request,
+    symbol: str | None = None,
+    strategy: str = "bull_put",
+):
+    data = strategy_timing.get_page(symbol=symbol, strategy=strategy)
+    return templates.TemplateResponse(request, "strategies.html", data)
 
 
 @app.get("/stock/{code}", response_class=HTMLResponse)

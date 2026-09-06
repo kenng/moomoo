@@ -13,6 +13,9 @@
     <a class="btn secondary" href="/">Price Targets</a>
     <a class="btn secondary" href="/holdings-news">Holdings News</a>
     <a class="btn secondary" href="/orders">Orders</a>
+    {% if not read_only %}
+    <a class="btn secondary" href="/strategies">Strategies</a>
+    {% endif %}
     <a class="btn secondary" href="/dividends">Dividends</a>
     {% if not read_only %}
     <form method="post" action="/refresh">

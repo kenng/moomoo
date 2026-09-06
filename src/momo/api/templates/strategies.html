@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "_ticker_links.html" import ticker_ext_links %}
+{% block title %}Option timing — Momo{% endblock %}
+{% block content %}
+<header>
+  <div>
+    <div class="brand">Option timing</div>
+    <div class="sub">
+      Live OpenD checklist · first strategy bull put spread
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn secondary" href="/">Price Targets</a>
+    <a class="btn secondary" href="/stock-news">Momo News</a>
+    <a class="btn secondary" href="/holdings-news">Holdings News</a>
+    <a class="btn secondary" href="/orders">Orders</a>
+    <a class="btn secondary" href="/dividends">Dividends</a>
+  </div>
+</header>
+
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div class="error">{{ request.query_params.get('error') }}</div>
+{% endif %}
+
+<form class="range-form" method="get" action="/strategies">
+  <label>
+    Ticker
+    <input type="text" name="symbol" value="{{ symbol }}" placeholder="QCOM" autocomplete="off" {% if not
+      read_only %}autofocus{% endif %} {% if read_only %}disabled{% endif %} />
+  </label>
+  <label>
+    Strategy
+    <select name="strategy" {% if read_only %}disabled{% endif %}>
+      {% for item in strategies %}
+      <option value="{{ item.id }}" {% if item.id==strategy %}selected{% endif %}>{{ item.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% if not read_only %}
+  <button type="submit">Analyze</button>
+  {% endif %}
+</form>
+
+{% if check %}
+<article class="card strategy-result">
+  <div class="strategy-result-head">
+    <div>
+      <h2>{{ stock.name if stock else check.symbol }}</h2>
+      <div class="meta">
+        {{ check.symbol }} · {{ check.strategy_label }}
+        {% if stock %}{{ ticker_ext_links(stock.symbol) }}{% endif %}
+        {% if check.fetched_at %} · {{ check.fetched_at|format_updated_at }}{% endif %}
+      </div>
+    </div>
+    <div class="conclusion conclusion-{{ check.conclusion|lower }}">
+      <div class="label">Conclusion</div>
+      <div class="value">{{ check.conclusion }}</div>
+      <div class="meta">penalty {{ check.penalty }} / 12</div>
+    </div>
+  </div>
+  {% if check.summary %}
+  <p class="strategy-summary">{{ check.summary }}</p>
+  {% endif %}
+  <div class="table-wrap">
+    <table class="orders-table strategy-table">
+      <thead>
+        <tr>
+          <th>Condition</th>
+          <th>Threshold</th>
+          <th>Current Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in check.conditions %}
+        <tr class="verdict-{{ row.verdict }}">
+          <td>{{ row.label }}</td>
+          <td>{{ row.threshold }}</td>
+          <td>{{ row.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</article>
+{% endif %}
+
+<article class="card">
+  <h2 class="section-title">Recent checks
+    <span class="meta" style="font-weight:400; margin:0;">· {{ recent|length }}</span>
+  </h2>
+  {% if recent %}
+  <div class="table-wrap">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Symbol</th>
+          <th>Strategy</th>
+          <th>Conclusion</th>
+          <th class="num">Penalty</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in recent %}
+        <tr>
+          <td>{% if row.fetched_at %}{{ row.fetched_at|format_updated_at }}{% else %}—{% endif %}</td>
+          <td>
+            <a href="/strategies?symbol={{ row.symbol }}&strategy={{ row.strategy }}">{{ row.symbol }}</a>
+            {% if row.stock_name and row.stock_name != row.stock_code %}
+            <div class="meta" style="margin:0">{{ row.stock_name }}</div>
+            {% endif %}
+          </td>
+          <td>{{ row.strategy_label }}</td>
+          <td>{{ row.conclusion }}</td>
+          <td class="num">{{ row.penalty }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">No strategy checks stored yet.</div>
+  {% endif %}
+</article>
+{% endblock %}

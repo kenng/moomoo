@@ -190,3 +190,19 @@ class StockOracleValuation(Base):
     currency: Mapped[str] = mapped_column(String(8), default="")
     assess_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class StrategyCheck(Base):
+    """Append-only option-strategy timing check."""
+
+    __tablename__ = "strategy_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    stock_code: Mapped[str] = mapped_column(String(16), index=True)
+    stock_name: Mapped[str] = mapped_column(String(128), default="")
+    strategy: Mapped[str] = mapped_column(String(32), index=True)
+    conclusion: Mapped[str] = mapped_column(String(32), default="")
+    penalty: Mapped[int] = mapped_column(Integer, default=0)
+    conditions_json: Mapped[str] = mapped_column(Text, default="[]")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

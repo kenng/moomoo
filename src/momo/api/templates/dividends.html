@@ -23,6 +23,9 @@
     <a class="btn secondary"
       href="/orders?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}">Orders</a>
     {% if not read_only %}
+    <a class="btn secondary" href="/strategies">Strategies</a>
+    {% endif %}
+    {% if not read_only %}
     <a class="btn"
       href="/dividends?trd_env={{ trd_env }}{% if selected_acc_id %}&acc_id={{ selected_acc_id }}{% endif %}&start={{ start }}&end={{ end }}&sync=1{% if show_all %}&all=1{% endif %}">Sync
       more</a>

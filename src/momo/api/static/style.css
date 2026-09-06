@@ -1571,3 +1571,68 @@ button.chip.active {
   margin-bottom: 0;
   font-size: 0.82rem;
 }
+
+.range-form input[type="text"],
+.range-form select {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--mono);
+  padding: 0.45rem 0.6rem;
+  min-width: 9.5rem;
+}
+
+.strategy-result-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.strategy-result-head h2 {
+  margin: 0 0 0.25rem;
+}
+
+.strategy-summary {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
+.conclusion {
+  text-align: right;
+  min-width: 10rem;
+}
+
+.conclusion .value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.conclusion-ideal .value,
+.conclusion-favorable .value {
+  color: var(--up);
+}
+
+.conclusion-wait-and-see .value {
+  color: #9a5b00;
+}
+
+.conclusion-avoid .value {
+  color: var(--down);
+}
+
+.strategy-table tr.verdict-fail td:last-child {
+  color: var(--down);
+}
+
+.strategy-table tr.verdict-warn td:last-child {
+  color: #9a5b00;
+}
+
+.strategy-table tr.verdict-pass td:last-child {
+  color: var(--up);
+}

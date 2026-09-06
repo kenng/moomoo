@@ -13,6 +13,9 @@
     <a class="btn secondary" href="/">Price Targets</a>
     <a class="btn secondary" href="/stock-news">Momo News</a>
     <a class="btn secondary" href="/orders/stocks?{{ qs_env }}{{ qs_acc }}">Orders</a>
+    {% if not read_only %}
+    <a class="btn secondary" href="/strategies">Strategies</a>
+    {% endif %}
     <a class="btn secondary" href="/dividends?{{ qs_env }}{{ qs_acc }}">Dividends</a>
     {% if not read_only %}
     <a class="btn" href="/holdings-news?{{ qs_env }}{{ qs_acc }}">Refresh</a>
