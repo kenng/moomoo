@@ -28,8 +28,8 @@
 <form class="range-form" method="get" action="/strategies">
   <label>
     Ticker
-    <input type="text" name="symbol" value="{{ symbol }}" placeholder="QCOM" autocomplete="off" {% if not
-      read_only %}autofocus{% endif %} {% if read_only %}disabled{% endif %} />
+    <input type="text" name="symbol" value="{{ symbol }}" placeholder="QCOM" autocomplete="off" {% if not read_only
+      %}autofocus{% endif %} {% if read_only %}disabled{% endif %} />
   </label>
   <label>
     Strategy
@@ -87,10 +87,15 @@
 </article>
 {% endif %}
 
-<article class="card">
-  <h2 class="section-title">Recent checks
-    <span class="meta" style="font-weight:400; margin:0;">· {{ recent|length }}</span>
-  </h2>
+<article class="card" id="recent-checks">
+  <div class="recent-checks-head">
+    <h2 class="section-title">Recent checks
+      <span class="meta" style="font-weight:400; margin:0;">· {{ recent|length }}</span>
+    </h2>
+    {% if recent and not read_only %}
+    <button type="button" class="btn secondary" id="toggle-check-delete" aria-pressed="false">Delete</button>
+    {% endif %}
+  </div>
   {% if recent %}
   <div class="table-wrap">
     <table class="orders-table">
@@ -106,7 +111,17 @@
       <tbody>
         {% for row in recent %}
         <tr>
-          <td>{% if row.fetched_at %}{{ row.fetched_at|format_updated_at }}{% else %}—{% endif %}</td>
+          <td class="when-cell">
+            {% if not read_only %}
+            {% set when = row.fetched_at|format_updated_at if row.fetched_at else '—' %}
+            <form method="post" action="/strategies/checks/{{ row.id }}/delete" class="inline-form row-delete-form"
+              hidden
+              data-confirm="Delete this check?&#10;{{ when }} · {{ row.symbol }} · {{ row.strategy_label }} · {{ row.conclusion }} (penalty {{ row.penalty }})">
+              <button type="submit" class="btn secondary row-delete">Delete</button>
+            </form>
+            {% endif %}
+            {% if row.fetched_at %}{{ row.fetched_at|format_updated_at }}{% else %}—{% endif %}
+          </td>
           <td>
             <a href="/strategies?symbol={{ row.symbol }}&strategy={{ row.strategy }}">{{ row.symbol }}</a>
             {% if row.stock_name and row.stock_name != row.stock_code %}
@@ -125,4 +140,42 @@
   <div class="empty">No strategy checks stored yet.</div>
   {% endif %}
 </article>
+{% if not read_only %}
+{% if recent %}
+<script>
+  (function () {
+    const card = document.getElementById("recent-checks");
+    const toggle = document.getElementById("toggle-check-delete");
+    if (!card || !toggle) return;
+    const key = "strategies-deleting";
+    const forms = card.querySelectorAll(".row-delete-form");
+
+    function setDeleting(on) {
+      card.classList.toggle("is-deleting", on);
+      toggle.setAttribute("aria-pressed", on ? "true" : "false");
+      toggle.textContent = on ? "Done" : "Delete";
+      forms.forEach(function (form) {
+        form.hidden = !on;
+      });
+      if (on) sessionStorage.setItem(key, "1");
+      else sessionStorage.removeItem(key);
+    }
+
+    toggle.addEventListener("click", function () {
+      setDeleting(!card.classList.contains("is-deleting"));
+    });
+    forms.forEach(function (form) {
+      form.addEventListener("submit", function (e) {
+        const msg = form.getAttribute("data-confirm") || "Delete this check?";
+        if (!window.confirm(msg)) e.preventDefault();
+      });
+    });
+
+    if (sessionStorage.getItem(key) === "1") setDeleting(true);
+  })();
+</script>
+{% else %}
+<script>sessionStorage.removeItem("strategies-deleting");</script>
+{% endif %}
+{% endif %}
 {% endblock %}

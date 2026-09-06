@@ -4,7 +4,11 @@ import json
 
 from momo.adapters.strategy_market import fetch_strategy_market
 from momo.config import get_settings
-from momo.db.repo import list_recent_strategy_checks, save_strategy_check
+from momo.db.repo import (
+    delete_strategy_check,
+    list_recent_strategy_checks,
+    save_strategy_check,
+)
 from momo.db.session import get_session
 from momo.domain.strategy_timing import (
     STRATEGY_LABELS,
@@ -43,6 +47,11 @@ def _row_to_recent(row) -> dict:
 def recent_checks(limit: int = 20) -> list[dict]:
     with get_session() as session:
         return [_row_to_recent(row) for row in list_recent_strategy_checks(session, limit)]
+
+
+def delete_check(check_id: int) -> bool:
+    with get_session() as session:
+        return delete_strategy_check(session, check_id)
 
 
 def analyze(symbol_input: str, strategy: str = "bull_put") -> dict:

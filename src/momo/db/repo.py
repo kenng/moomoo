@@ -609,3 +609,12 @@ def list_recent_strategy_checks(
         )
     )
 
+
+def delete_strategy_check(session: Session, check_id: int) -> bool:
+    row = session.get(StrategyCheck, check_id)
+    if row is None:
+        return False
+    session.delete(row)
+    session.commit()
+    return True
+

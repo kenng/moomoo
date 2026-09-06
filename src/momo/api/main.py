@@ -623,6 +623,14 @@ def strategies_page(
     return templates.TemplateResponse(request, "strategies.html", data)
 
 
+@app.post("/strategies/checks/{check_id}/delete")
+def delete_strategy_check_route(check_id: int):
+    if (blocked := _reject_if_read_only("/strategies")) is not None:
+        return blocked
+    strategy_timing.delete_check(check_id)
+    return RedirectResponse(url="/strategies", status_code=303)
+
+
 @app.get("/stock/{code}", response_class=HTMLResponse)
 def stock_detail(
     request: Request, code: str, sort: str = "date", source: str = "all"

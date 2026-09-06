@@ -280,8 +280,12 @@ def _trend_condition(
     )
 
 
+def _earnings_day(when: date) -> str:
+    return f"{when.day} {when.strftime('%b')}"
+
+
 def _earnings_label(when: date) -> str:
-    return f"Earnings {when.day} {when.strftime('%b')}"
+    return f"Earnings {_earnings_day(when)}"
 
 
 def _catalyst_condition(
@@ -306,7 +310,10 @@ def _catalyst_condition(
                 "catalyst",
                 "Fundamental catalyst",
                 threshold,
-                _marked(_earnings_label(next_earnings), "pass"),
+                _marked(
+                    f"No earnings in 14 days · next {_earnings_day(next_earnings)}",
+                    "pass",
+                ),
                 "pass",
             )
     if cleared_14d:

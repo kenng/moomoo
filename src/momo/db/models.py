@@ -193,7 +193,7 @@ class StockOracleValuation(Base):
 
 
 class StrategyCheck(Base):
-    """Append-only option-strategy timing check."""
+    """Stored option-strategy timing check."""
 
     __tablename__ = "strategy_checks"
 

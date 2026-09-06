@@ -178,8 +178,13 @@ def _symbol_matches(row_code: str, symbol: str) -> bool:
     return left == right or bare_code(left) == bare_code(right)
 
 
+# OpenD calendar windows are short; scan ~90 days so next earnings can surface
+# even when the 14-day catalyst window is clear.
+_CALENDAR_LOOKAHEAD_WEEKS = 13
+
+
 def _calendar_hits(
-    ctx, ft, symbol: str, today: date
+    ctx, ft, symbol: str, today: date, *, weeks: int = _CALENDAR_LOOKAHEAD_WEEKS
 ) -> tuple[list[date], bool]:
     market_name = symbol.split(".", 1)[0]
     market = getattr(ft.Market, market_name, None)
@@ -187,7 +192,7 @@ def _calendar_hits(
         return [], False
     hits: list[date] = []
     start = today
-    for _ in range(2):
+    for _ in range(max(1, weeks)):
         end = start + timedelta(days=6)
         ret, data = ctx.get_earnings_calendar(
             market,
@@ -228,7 +233,9 @@ def _earnings_metrics(ctx, ft, symbol: str) -> dict:
         cleared = False
     return {
         "next_earnings": next_earnings,
-        "earnings_in_14d_cleared": cleared and next_earnings is None,
+        # Cleared means no report inside 14 days; still keep next_earnings when
+        # the calendar found a later date so the UI can show it.
+        "earnings_in_14d_cleared": cleared,
     }
 
 

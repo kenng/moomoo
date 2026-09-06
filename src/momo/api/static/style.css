@@ -1585,6 +1585,45 @@ button.chip.active {
   min-width: 9.5rem;
 }
 
+.recent-checks-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.recent-checks-head .section-title {
+  margin: 0;
+}
+
+.when-cell {
+  white-space: nowrap;
+}
+
+.row-delete-form {
+  margin-right: 0.45rem;
+  vertical-align: middle;
+}
+
+.row-delete-form[hidden] {
+  display: none !important;
+}
+
+.row-delete {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  border-color: var(--down);
+  color: var(--down);
+}
+
+button.secondary.row-delete,
+.btn.secondary.row-delete {
+  border-color: var(--down);
+  color: var(--down);
+}
+
 .strategy-result-head {
   display: flex;
   justify-content: space-between;

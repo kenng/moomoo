@@ -134,6 +134,8 @@ def test_condition_edges():
         today=today,
     )
     assert all(c.verdict == "pass" for c in check.conditions)
+    catalyst = [c for c in check.conditions if c.key == "catalyst"][0]
+    assert catalyst.status == "No earnings in 14 days · next 21 Sep — ✅"
 
     unknown = evaluate_strategy("bull_put", "US.QCOM", {}, today=today)
     assert unknown.penalty == 6
@@ -225,6 +227,37 @@ def test_analyze_appends_history(tmp_path):
     assert second["check"]["symbol"] == "US.QCOM"
 
 
+def test_delete_check_removes_row(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 't.db'}")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    def _session():
+        return factory()
+
+    market = _metrics()
+    market["name"] = "QUALCOMM"
+    with (
+        patch(
+            "momo.services.strategy_timing.fetch_strategy_market",
+            return_value=market,
+        ),
+        patch("momo.services.strategy_timing.get_session", _session),
+    ):
+        strategy_timing.analyze("QCOM")
+        strategy_timing.analyze("QCOM")
+        with factory() as session:
+            rows = list_recent_strategy_checks(session)
+        assert len(rows) == 2
+        removed_id = rows[0].id
+        assert strategy_timing.delete_check(removed_id) is True
+        assert strategy_timing.delete_check(removed_id) is False
+        with factory() as session:
+            left = list_recent_strategy_checks(session)
+        assert len(left) == 1
+        assert left[0].id != removed_id
+
+
 def _plain_settings(**overrides) -> Settings:
     values = dict(
         auth_username="",
@@ -303,6 +336,56 @@ def test_strategies_page_shows_check_table():
     assert "IV Rank" in res.text
     assert "23 — ❌" in res.text
     assert "Too many conditions against entry." in res.text
+
+
+def test_strategies_page_shows_delete_controls():
+    settings = _plain_settings()
+    page = {
+        "symbol": "",
+        "strategy": "bull_put",
+        "strategies": [{"id": "bull_put", "label": "Bull put spread"}],
+        "stock": None,
+        "check": None,
+        "recent": [
+            {
+                "id": 7,
+                "symbol": "US.QCOM",
+                "stock_code": "QCOM",
+                "stock_name": "QUALCOMM",
+                "strategy": "bull_put",
+                "strategy_label": "Bull put spread",
+                "conclusion": "Avoid",
+                "penalty": 10,
+                "fetched_at": None,
+            }
+        ],
+        "error": None,
+    }
+    with (
+        patch("momo.api.auth.get_settings", return_value=settings),
+        patch("momo.api.main.get_settings", return_value=settings),
+        patch("momo.api.main.strategy_timing.get_page", return_value=page),
+    ):
+        res = TestClient(app).get("/strategies")
+    assert res.status_code == 200
+    assert 'id="toggle-check-delete"' in res.text
+    assert 'action="/strategies/checks/7/delete"' in res.text
+    assert "data-confirm=" in res.text
+
+
+def test_delete_strategy_check_route():
+    settings = _plain_settings()
+    with (
+        patch("momo.api.auth.get_settings", return_value=settings),
+        patch("momo.api.main.get_settings", return_value=settings),
+        patch("momo.api.main.strategy_timing.delete_check", return_value=True) as delete,
+    ):
+        res = TestClient(app).post(
+            "/strategies/checks/7/delete", follow_redirects=False
+        )
+    assert res.status_code == 303
+    assert res.headers["location"] == "/strategies"
+    delete.assert_called_once_with(7)
 
 
 def test_strategies_nav_hidden_when_read_only():
