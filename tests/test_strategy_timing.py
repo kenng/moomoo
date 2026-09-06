@@ -258,6 +258,36 @@ def test_delete_check_removes_row(tmp_path):
         assert left[0].id != removed_id
 
 
+def test_delete_checks_removes_multiple(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 't.db'}")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    def _session():
+        return factory()
+
+    market = _metrics()
+    market["name"] = "QUALCOMM"
+    with (
+        patch(
+            "momo.services.strategy_timing.fetch_strategy_market",
+            return_value=market,
+        ),
+        patch("momo.services.strategy_timing.get_session", _session),
+    ):
+        strategy_timing.analyze("QCOM")
+        strategy_timing.analyze("QCOM")
+        strategy_timing.analyze("QCOM")
+        with factory() as session:
+            rows = list_recent_strategy_checks(session)
+        assert len(rows) == 3
+        removed = [rows[0].id, rows[1].id]
+        assert strategy_timing.delete_checks(removed) == 2
+        with factory() as session:
+            left = list_recent_strategy_checks(session)
+        assert len(left) == 1
+        assert left[0].id == rows[2].id
+
 def _plain_settings(**overrides) -> Settings:
     values = dict(
         auth_username="",
@@ -369,8 +399,10 @@ def test_strategies_page_shows_delete_controls():
         res = TestClient(app).get("/strategies")
     assert res.status_code == 200
     assert 'id="toggle-check-delete"' in res.text
-    assert 'action="/strategies/checks/7/delete"' in res.text
-    assert "data-confirm=" in res.text
+    assert 'id="bulk-delete-form"' in res.text
+    assert 'action="/strategies/checks/delete"' in res.text
+    assert 'name="check_ids" value="7"' in res.text
+    assert 'id="select-all-checks"' in res.text
 
 
 def test_delete_strategy_check_route():
@@ -386,6 +418,23 @@ def test_delete_strategy_check_route():
     assert res.status_code == 303
     assert res.headers["location"] == "/strategies"
     delete.assert_called_once_with(7)
+
+
+def test_delete_strategy_checks_route():
+    settings = _plain_settings()
+    with (
+        patch("momo.api.auth.get_settings", return_value=settings),
+        patch("momo.api.main.get_settings", return_value=settings),
+        patch("momo.api.main.strategy_timing.delete_checks", return_value=2) as delete,
+    ):
+        res = TestClient(app).post(
+            "/strategies/checks/delete",
+            data={"check_ids": ["7", "8"]},
+            follow_redirects=False,
+        )
+    assert res.status_code == 303
+    assert res.headers["location"] == "/strategies"
+    delete.assert_called_once_with([7, 8])
 
 
 def test_strategies_nav_hidden_when_read_only():

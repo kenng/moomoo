@@ -611,10 +611,21 @@ def list_recent_strategy_checks(
 
 
 def delete_strategy_check(session: Session, check_id: int) -> bool:
-    row = session.get(StrategyCheck, check_id)
-    if row is None:
-        return False
-    session.delete(row)
-    session.commit()
-    return True
+    return delete_strategy_checks(session, [check_id]) == 1
+
+
+def delete_strategy_checks(session: Session, check_ids: list[int]) -> int:
+    ids = [int(check_id) for check_id in check_ids if check_id is not None]
+    if not ids:
+        return 0
+    deleted = 0
+    for check_id in dict.fromkeys(ids):
+        row = session.get(StrategyCheck, check_id)
+        if row is None:
+            continue
+        session.delete(row)
+        deleted += 1
+    if deleted:
+        session.commit()
+    return deleted
 

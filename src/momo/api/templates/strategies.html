@@ -18,14 +18,16 @@
   </div>
 </header>
 
-{% if error %}
-<div class="error">{{ error }}</div>
-{% endif %}
-{% if request.query_params.get('error') %}
-<div class="error">{{ request.query_params.get('error') }}</div>
-{% endif %}
+<div id="strategy-flash">
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+  {% if request.query_params.get('error') %}
+  <div class="error">{{ request.query_params.get('error') }}</div>
+  {% endif %}
+</div>
 
-<form class="range-form" method="get" action="/strategies">
+<form class="range-form" id="strategy-form" method="get" action="/strategies">
   <label>
     Ticker
     <input type="text" name="symbol" value="{{ symbol }}" placeholder="QCOM" autocomplete="off" {% if not read_only
@@ -44,48 +46,50 @@
   {% endif %}
 </form>
 
-{% if check %}
-<article class="card strategy-result">
-  <div class="strategy-result-head">
-    <div>
-      <h2>{{ stock.name if stock else check.symbol }}</h2>
-      <div class="meta">
-        {{ check.symbol }} · {{ check.strategy_label }}
-        {% if stock %}{{ ticker_ext_links(stock.symbol) }}{% endif %}
-        {% if check.fetched_at %} · {{ check.fetched_at|format_updated_at }}{% endif %}
+<div id="strategy-result-slot">
+  {% if check %}
+  <article class="card strategy-result">
+    <div class="strategy-result-head">
+      <div>
+        <h2>{{ stock.name if stock else check.symbol }}</h2>
+        <div class="meta">
+          {{ check.symbol }} · {{ check.strategy_label }}
+          {% if stock %}{{ ticker_ext_links(stock.symbol) }}{% endif %}
+          {% if check.fetched_at %} · {{ check.fetched_at|format_updated_at }}{% endif %}
+        </div>
+      </div>
+      <div class="conclusion conclusion-{{ check.conclusion|lower }}">
+        <div class="label">Conclusion</div>
+        <div class="value">{{ check.conclusion }}</div>
+        <div class="meta">penalty {{ check.penalty }} / 12</div>
       </div>
     </div>
-    <div class="conclusion conclusion-{{ check.conclusion|lower }}">
-      <div class="label">Conclusion</div>
-      <div class="value">{{ check.conclusion }}</div>
-      <div class="meta">penalty {{ check.penalty }} / 12</div>
+    {% if check.summary %}
+    <p class="strategy-summary">{{ check.summary }}</p>
+    {% endif %}
+    <div class="table-wrap">
+      <table class="orders-table strategy-table">
+        <thead>
+          <tr>
+            <th>Condition</th>
+            <th>Threshold</th>
+            <th>Current Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in check.conditions %}
+          <tr class="verdict-{{ row.verdict }}">
+            <td>{{ row.label }}</td>
+            <td>{{ row.threshold }}</td>
+            <td>{{ row.status }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-  </div>
-  {% if check.summary %}
-  <p class="strategy-summary">{{ check.summary }}</p>
+  </article>
   {% endif %}
-  <div class="table-wrap">
-    <table class="orders-table strategy-table">
-      <thead>
-        <tr>
-          <th>Condition</th>
-          <th>Threshold</th>
-          <th>Current Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in check.conditions %}
-        <tr class="verdict-{{ row.verdict }}">
-          <td>{{ row.label }}</td>
-          <td>{{ row.threshold }}</td>
-          <td>{{ row.status }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</article>
-{% endif %}
+</div>
 
 <article class="card" id="recent-checks">
   <div class="recent-checks-head">
@@ -93,7 +97,13 @@
       <span class="meta" style="font-weight:400; margin:0;">· {{ recent|length }}</span>
     </h2>
     {% if recent and not read_only %}
-    <button type="button" class="btn secondary" id="toggle-check-delete" aria-pressed="false">Delete</button>
+    <div class="recent-checks-actions">
+      <form method="post" action="/strategies/checks/delete" id="bulk-delete-form" class="inline-form bulk-delete-form"
+        hidden data-confirm-one="Delete 1 selected check?" data-confirm-many="Delete {n} selected checks?">
+        <button type="submit" class="btn secondary row-delete" id="delete-selected" disabled>Delete selected</button>
+      </form>
+      <button type="button" class="btn secondary" id="toggle-check-delete" aria-pressed="false">Delete</button>
+    </div>
     {% endif %}
   </div>
   {% if recent %}
@@ -101,6 +111,11 @@
     <table class="orders-table">
       <thead>
         <tr>
+          {% if not read_only %}
+          <th class="col-check" hidden>
+            <input type="checkbox" id="select-all-checks" form="bulk-delete-form" aria-label="Select all checks" />
+          </th>
+          {% endif %}
           <th>When</th>
           <th>Symbol</th>
           <th>Strategy</th>
@@ -111,19 +126,18 @@
       <tbody>
         {% for row in recent %}
         <tr>
+          {% if not read_only %}
+          <td class="col-check" hidden>
+            <input type="checkbox" class="row-check" name="check_ids" value="{{ row.id }}" form="bulk-delete-form"
+              aria-label="Select {{ row.symbol }} check" />
+          </td>
+          {% endif %}
           <td class="when-cell">
-            {% if not read_only %}
-            {% set when = row.fetched_at|format_updated_at if row.fetched_at else '—' %}
-            <form method="post" action="/strategies/checks/{{ row.id }}/delete" class="inline-form row-delete-form"
-              hidden
-              data-confirm="Delete this check?&#10;{{ when }} · {{ row.symbol }} · {{ row.strategy_label }} · {{ row.conclusion }} (penalty {{ row.penalty }})">
-              <button type="submit" class="btn secondary row-delete">Delete</button>
-            </form>
-            {% endif %}
             {% if row.fetched_at %}{{ row.fetched_at|format_updated_at }}{% else %}—{% endif %}
           </td>
           <td>
-            <a href="/strategies?symbol={{ row.symbol }}&strategy={{ row.strategy }}">{{ row.symbol }}</a>
+            <a class="strategy-check-link" href="/strategies?symbol={{ row.symbol }}&strategy={{ row.strategy }}">{{
+              row.symbol }}</a>
             {% if row.stock_name and row.stock_name != row.stock_code %}
             <div class="meta" style="margin:0">{{ row.stock_name }}</div>
             {% endif %}
@@ -141,41 +155,205 @@
   {% endif %}
 </article>
 {% if not read_only %}
-{% if recent %}
 <script>
   (function () {
-    const card = document.getElementById("recent-checks");
-    const toggle = document.getElementById("toggle-check-delete");
-    if (!card || !toggle) return;
-    const key = "strategies-deleting";
-    const forms = card.querySelectorAll(".row-delete-form");
+    const DELETE_KEY = "strategies-deleting";
+    const form = document.getElementById("strategy-form");
+    const flash = document.getElementById("strategy-flash");
+    const resultSlot = document.getElementById("strategy-result-slot");
+    let recentCard = document.getElementById("recent-checks");
+    if (!form || !flash || !resultSlot || !recentCard) return;
 
-    function setDeleting(on) {
-      card.classList.toggle("is-deleting", on);
-      toggle.setAttribute("aria-pressed", on ? "true" : "false");
-      toggle.textContent = on ? "Done" : "Delete";
-      forms.forEach(function (form) {
-        form.hidden = !on;
-      });
-      if (on) sessionStorage.setItem(key, "1");
-      else sessionStorage.removeItem(key);
+    const symbolInput = form.querySelector('input[name="symbol"]');
+    const strategySelect = form.querySelector('select[name="strategy"]');
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    function updateDeleteSelected() {
+      recentCard = document.getElementById("recent-checks");
+      const form = document.getElementById("bulk-delete-form");
+      const btn = document.getElementById("delete-selected");
+      const selectAll = document.getElementById("select-all-checks");
+      if (!recentCard || !form || !btn) return;
+      const checks = Array.from(recentCard.querySelectorAll(".row-check"));
+      const selected = checks.filter(function (el) { return el.checked; });
+      btn.disabled = selected.length === 0;
+      btn.textContent = selected.length
+        ? "Delete selected (" + selected.length + ")"
+        : "Delete selected";
+      if (selectAll) {
+        selectAll.checked = checks.length > 0 && selected.length === checks.length;
+        selectAll.indeterminate = selected.length > 0 && selected.length < checks.length;
+      }
     }
 
-    toggle.addEventListener("click", function () {
-      setDeleting(!card.classList.contains("is-deleting"));
-    });
-    forms.forEach(function (form) {
-      form.addEventListener("submit", function (e) {
-        const msg = form.getAttribute("data-confirm") || "Delete this check?";
-        if (!window.confirm(msg)) e.preventDefault();
+    function setDeleting(on) {
+      recentCard = document.getElementById("recent-checks");
+      const toggle = document.getElementById("toggle-check-delete");
+      const bulkForm = document.getElementById("bulk-delete-form");
+      if (!recentCard || !toggle) return;
+      recentCard.classList.toggle("is-deleting", on);
+      toggle.setAttribute("aria-pressed", on ? "true" : "false");
+      toggle.textContent = on ? "Done" : "Delete";
+      if (bulkForm) bulkForm.hidden = !on;
+      recentCard.querySelectorAll(".col-check").forEach(function (el) {
+        el.hidden = !on;
       });
+      if (!on) {
+        recentCard.querySelectorAll(".row-check").forEach(function (el) {
+          el.checked = false;
+        });
+        const selectAll = document.getElementById("select-all-checks");
+        if (selectAll) {
+          selectAll.checked = false;
+          selectAll.indeterminate = false;
+        }
+      }
+      updateDeleteSelected();
+      if (on) sessionStorage.setItem(DELETE_KEY, "1");
+      else sessionStorage.removeItem(DELETE_KEY);
+    }
+
+    function syncDeleteUi() {
+      recentCard = document.getElementById("recent-checks");
+      if (!recentCard) return;
+      if (!recentCard.querySelector(".row-check")) {
+        sessionStorage.removeItem(DELETE_KEY);
+        return;
+      }
+      if (sessionStorage.getItem(DELETE_KEY) === "1") setDeleting(true);
+      else updateDeleteSelected();
+    }
+
+    function setLoading(on) {
+      form.classList.toggle("is-loading", on);
+      form.setAttribute("aria-busy", on ? "true" : "false");
+      if (symbolInput) symbolInput.disabled = on;
+      if (strategySelect) strategySelect.disabled = on;
+      if (submitBtn) {
+        submitBtn.disabled = on;
+        submitBtn.textContent = on ? "Analyzing…" : "Analyze";
+      }
+    }
+
+    async function load(url, options) {
+      const opts = options || {};
+      if (form.classList.contains("is-loading")) return;
+      setLoading(true);
+      try {
+        const res = await fetch(url, {
+          headers: { Accept: "text/html", "X-Requested-With": "fetch" },
+        });
+        if (!res.ok) throw new Error("Request failed");
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const nextFlash = doc.getElementById("strategy-flash");
+        const nextResult = doc.getElementById("strategy-result-slot");
+        const nextRecent = doc.getElementById("recent-checks");
+        const nextForm = doc.getElementById("strategy-form");
+        if (!nextFlash || !nextResult || !nextRecent) throw new Error("Unexpected response");
+
+        document.getElementById("strategy-flash").replaceWith(nextFlash);
+        document.getElementById("strategy-result-slot").replaceWith(nextResult);
+        document.getElementById("recent-checks").replaceWith(nextRecent);
+        recentCard = document.getElementById("recent-checks");
+
+        if (nextForm && symbolInput && strategySelect) {
+          const nextSymbol = nextForm.querySelector('input[name="symbol"]');
+          const nextStrategy = nextForm.querySelector('select[name="strategy"]');
+          if (nextSymbol) symbolInput.value = nextSymbol.value;
+          if (nextStrategy) strategySelect.value = nextStrategy.value;
+        }
+
+        if (!opts.skipHistory) {
+          history.pushState({}, "", url);
+        }
+        syncDeleteUi();
+        if (opts.scroll !== false) {
+          const slot = document.getElementById("strategy-result-slot");
+          if (slot && slot.children.length) {
+            slot.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
+      } catch (err) {
+        const el = document.getElementById("strategy-flash");
+        if (el) {
+          el.innerHTML = '<div class="error">Could not load strategy check. Try again.</div>';
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const symbol = (symbolInput && symbolInput.value || "").trim();
+      if (!symbol) {
+        if (symbolInput) symbolInput.focus();
+        return;
+      }
+      const params = new URLSearchParams();
+      params.set("symbol", symbol);
+      params.set("strategy", strategySelect ? strategySelect.value : "bull_put");
+      load("/strategies?" + params.toString());
     });
 
-    if (sessionStorage.getItem(key) === "1") setDeleting(true);
+    document.addEventListener("click", function (e) {
+      const link = e.target.closest("a.strategy-check-link");
+      if (!link) return;
+      recentCard = document.getElementById("recent-checks");
+      if (!recentCard || !recentCard.contains(link)) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      const url = new URL(link.href, location.origin);
+      if (symbolInput) symbolInput.value = url.searchParams.get("symbol") || "";
+      if (strategySelect) strategySelect.value = url.searchParams.get("strategy") || "bull_put";
+      load(url.pathname + url.search);
+    });
+
+    document.addEventListener("click", function (e) {
+      const toggle = e.target.closest("#toggle-check-delete");
+      if (!toggle) return;
+      recentCard = document.getElementById("recent-checks");
+      if (!recentCard) return;
+      setDeleting(!recentCard.classList.contains("is-deleting"));
+    });
+
+    document.addEventListener("change", function (e) {
+      recentCard = document.getElementById("recent-checks");
+      if (!recentCard || !recentCard.contains(e.target)) return;
+      if (e.target.id === "select-all-checks") {
+        const on = e.target.checked;
+        recentCard.querySelectorAll(".row-check").forEach(function (el) {
+          el.checked = on;
+        });
+        updateDeleteSelected();
+        return;
+      }
+      if (e.target.classList.contains("row-check")) {
+        updateDeleteSelected();
+      }
+    });
+
+    document.addEventListener("submit", function (e) {
+      const deleteForm = e.target.closest("#bulk-delete-form");
+      if (!deleteForm) return;
+      const selected = document.querySelectorAll("#recent-checks .row-check:checked").length;
+      if (!selected) {
+        e.preventDefault();
+        return;
+      }
+      const one = deleteForm.getAttribute("data-confirm-one") || "Delete 1 selected check?";
+      const many = deleteForm.getAttribute("data-confirm-many") || "Delete {n} selected checks?";
+      const msg = selected === 1 ? one : many.replace("{n}", String(selected));
+      if (!window.confirm(msg)) e.preventDefault();
+    });
+
+    window.addEventListener("popstate", function () {
+      load(location.pathname + location.search, { skipHistory: true, scroll: false });
+    });
+
+    syncDeleteUi();
   })();
 </script>
-{% else %}
-<script>sessionStorage.removeItem("strategies-deleting");</script>
-{% endif %}
 {% endif %}
 {% endblock %}

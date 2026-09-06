@@ -6,6 +6,7 @@ from momo.adapters.strategy_market import fetch_strategy_market
 from momo.config import get_settings
 from momo.db.repo import (
     delete_strategy_check,
+    delete_strategy_checks,
     list_recent_strategy_checks,
     save_strategy_check,
 )
@@ -52,6 +53,11 @@ def recent_checks(limit: int = 20) -> list[dict]:
 def delete_check(check_id: int) -> bool:
     with get_session() as session:
         return delete_strategy_check(session, check_id)
+
+
+def delete_checks(check_ids: list[int]) -> int:
+    with get_session() as session:
+        return delete_strategy_checks(session, check_ids)
 
 
 def analyze(symbol_input: str, strategy: str = "bull_put") -> dict:

@@ -1585,6 +1585,11 @@ button.chip.active {
   min-width: 9.5rem;
 }
 
+.range-form.is-loading {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .recent-checks-head {
   display: flex;
   flex-wrap: wrap;
@@ -1598,17 +1603,33 @@ button.chip.active {
   margin: 0;
 }
 
+.recent-checks-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .when-cell {
   white-space: nowrap;
 }
 
-.row-delete-form {
-  margin-right: 0.45rem;
+.bulk-delete-form[hidden],
+.col-check[hidden] {
+  display: none !important;
+}
+
+.col-check {
+  width: 2rem;
+  text-align: center;
   vertical-align: middle;
 }
 
-.row-delete-form[hidden] {
-  display: none !important;
+.col-check input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--down);
+  cursor: pointer;
 }
 
 .row-delete {
@@ -1622,6 +1643,12 @@ button.secondary.row-delete,
 .btn.secondary.row-delete {
   border-color: var(--down);
   color: var(--down);
+}
+
+button.secondary.row-delete:disabled,
+.btn.secondary.row-delete:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .strategy-result-head {
