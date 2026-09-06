@@ -174,6 +174,9 @@ def test_refresh_targets_updates_quote_snapshot_last_price():
             "momo.services.price_targets.replace_institution_targets",
             return_value=0,
         ),
+        patch(
+            "momo.services.price_targets.sync_watchlist_from_positions"
+        ) as sync_wl,
         patch("momo.services.price_targets.get_session") as session,
     ):
         session.return_value.__enter__.return_value = object()
@@ -181,10 +184,64 @@ def test_refresh_targets_updates_quote_snapshot_last_price():
 
     get_snaps.assert_called_once_with(["HK.09988"])
     save.assert_called_once()
+    sync_wl.assert_not_called()
     stored = save.call_args.args[1]
     assert stored["symbol"] == "HK.09988"
     assert stored["last_price"] == 122.4
     assert result["ok"] is True
+    assert result["watchlist_sync"] is None
+
+
+def test_refresh_targets_syncs_watchlist_from_positions():
+    stocks = [
+        {
+            "symbol": "US.QCOM",
+            "code": "QCOM",
+            "name": "QUALCOMM",
+            "market": "US",
+            "qty": 10,
+        }
+    ]
+    sync_result = {
+        "ok": True,
+        "synced": True,
+        "symbols": 1,
+        "skipped": None,
+    }
+
+    with (
+        patch(
+            "momo.services.price_targets._stocks_for_targets",
+            return_value=(stocks, {"source": "positions"}),
+        ),
+        patch(
+            "momo.services.price_targets.quote_adapter.get_snapshots",
+            return_value=[],
+        ),
+        patch(
+            "momo.services.price_targets.research_adapter.get_analyst_consensus",
+            return_value=None,
+        ),
+        patch(
+            "momo.services.price_targets.research_adapter.get_institution_targets",
+            return_value=[],
+        ),
+        patch(
+            "momo.services.price_targets.replace_institution_targets",
+            return_value=0,
+        ),
+        patch(
+            "momo.services.price_targets.sync_watchlist_from_positions",
+            return_value=sync_result,
+        ) as sync_wl,
+        patch("momo.services.price_targets.get_session") as session,
+    ):
+        session.return_value.__enter__.return_value = object()
+        result = refresh_watchlist_targets()
+
+    sync_wl.assert_called_once_with(stocks)
+    assert result["watchlist_sync"] == sync_result
+    assert result["source"] == "positions"
 
 
 def test_save_snapshot_updates_existing_last_price():

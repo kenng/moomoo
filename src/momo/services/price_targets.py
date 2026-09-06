@@ -21,7 +21,7 @@ from momo.db.repo import (
 from momo.db.session import get_session
 from momo.domain.options import parse_option_code
 from momo.opend_client import OpenDError
-from momo.watchlist import load_watchlist
+from momo.watchlist import load_watchlist, sync_watchlist_from_positions
 
 logger = logging.getLogger(__name__)
 
@@ -427,6 +427,9 @@ def refresh_watchlist_targets(
 ) -> dict:
     """Fetch consensus + institution targets for open positions (or watchlist)."""
     stocks, meta = _stocks_for_targets(acc_id=acc_id, trd_env=trd_env)
+    watchlist_sync: dict | None = None
+    if meta.get("source") == "positions":
+        watchlist_sync = sync_watchlist_from_positions(stocks)
     refreshed = 0
     institution_rows = 0
     errors: list[str] = []
@@ -484,6 +487,7 @@ def refresh_watchlist_targets(
         "errors": errors,
         "source": meta.get("source"),
         "symbols": len(stocks),
+        "watchlist_sync": watchlist_sync,
     }
 
 

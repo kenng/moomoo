@@ -7,7 +7,7 @@ import sys
 from momo.config import get_settings, to_symbol
 from momo.opend_client import OpenDError, smoke_test_snapshot
 from momo.services import news_digest
-from momo.watchlist import load_watchlist, resolve_stock
+from momo.watchlist import load_watchlist, resolve_stock, sync_watchlist_from_positions
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -51,8 +51,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_refresh.add_argument("--json", action="store_true")
 
-    p_wl = sub.add_parser("watchlist", help="List configured watchlist")
+    p_wl = sub.add_parser("watchlist", help="List or sync watchlist from OpenD positions")
     p_wl.add_argument("--json", action="store_true")
+    p_wl.add_argument(
+        "--sync",
+        action="store_true",
+        help="Overwrite watchlist.yaml from live stock/ETF positions (OpenD)",
+    )
 
     p_publish = sub.add_parser(
         "publish",
@@ -97,6 +102,9 @@ def _cmd_smoke(args) -> int:
 
 
 def _cmd_watchlist(args) -> int:
+    if args.sync:
+        return _cmd_watchlist_sync(args)
+
     stocks = load_watchlist()
     if args.json:
         print(json.dumps(stocks, indent=2))
@@ -104,6 +112,26 @@ def _cmd_watchlist(args) -> int:
         for s in stocks:
             print(f"{s['symbol']}\t{s['name']}")
     return 0
+
+
+def _cmd_watchlist_sync(args) -> int:
+    from momo.services.price_targets import _stock_positions_from_opend
+
+    positions, meta = _stock_positions_from_opend()
+    result = sync_watchlist_from_positions(positions)
+    payload = {**result, "trd_env": meta.get("trd_env"), "source": "positions"}
+    if args.json:
+        print(json.dumps(payload, indent=2, default=str))
+        return 0 if result.get("ok") else 1
+
+    if result.get("synced"):
+        print(f"watchlist synced: {result['symbols']} stock/ETF symbols")
+    else:
+        print(
+            f"watchlist not written ({result.get('skipped') or 'skipped'}); "
+            "file left unchanged"
+        )
+    return 0 if result.get("ok") else 1
 
 
 def _cmd_news(args) -> int:
@@ -196,6 +224,12 @@ def _cmd_refresh_targets(args) -> int:
         f"consensus={result.get('refreshed')} "
         f"institutions={result.get('institution_rows')}"
     )
+    wl = result.get("watchlist_sync")
+    if wl:
+        if wl.get("synced"):
+            print(f"watchlist synced: {wl.get('symbols')} stock/ETF symbols")
+        elif wl.get("skipped"):
+            print(f"watchlist unchanged ({wl['skipped']})")
     for err in result.get("errors") or []:
         print(f"  error: {err}", file=sys.stderr)
     return 0 if result.get("ok") else 1
