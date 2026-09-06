@@ -1614,6 +1614,10 @@ button.chip.active {
   white-space: nowrap;
 }
 
+#recent-checks.is-deleting .when-cell {
+  cursor: pointer;
+}
+
 .bulk-delete-form[hidden],
 .col-check[hidden] {
   display: none !important;

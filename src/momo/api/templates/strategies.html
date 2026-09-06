@@ -318,6 +318,16 @@
       setDeleting(!recentCard.classList.contains("is-deleting"));
     });
 
+    document.addEventListener("click", function (e) {
+      const when = e.target.closest("#recent-checks.is-deleting .when-cell");
+      if (!when) return;
+      const row = when.closest("tr");
+      const check = row && row.querySelector(".row-check");
+      if (!check) return;
+      check.checked = !check.checked;
+      check.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
     document.addEventListener("change", function (e) {
       recentCard = document.getElementById("recent-checks");
       if (!recentCard || !recentCard.contains(e.target)) return;
