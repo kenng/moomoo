@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 
 from momo.adapters import orders as orders_adapter
 from momo.config import get_settings
+from momo.domain.options import parse_option_code
 from momo.opend_client import OpenDError, trade_context
 
 # OpenD: max 20 get_acc_cash_flow calls per 30s.
@@ -31,6 +32,18 @@ _REMARK_PER_TICKER = re.compile(
 # e.g. "CRESNDO - Second Interim…"
 _REMARK_LEADING_TICKER = re.compile(r"^([A-Z]{2,12})\s*[-–—]\s+")
 _REMARK_SHARES = re.compile(r"(\d+(?:\.\d+)?)\s*shares?", re.IGNORECASE)
+# e.g. "of 0.60 sen per ordinary share" / "of RM0.33 per ordinary share"
+_REMARK_RATE_PER = re.compile(
+    r"(?:^|[\s\-])(?:of\s+)?(?P<ccy>RM|MYR)?"
+    r"\s*(?P<amt>\d+(?:\.\d+)?)\s*(?P<sen>sen)?\s+per\b",
+    re.IGNORECASE,
+)
+_CCY_MARKET = {
+    "MYR": "MY",
+    "HKD": "HK",
+    "USD": "US",
+    "SGD": "SG",
+}
 _TICKER_STOPWORDS = frozenset(
     {
         "ORDINARY",
@@ -198,6 +211,8 @@ def enrich_dividend(row: dict) -> dict:
             shares = float(sm.group(1))
         except ValueError:
             shares = None
+    if shares is None:
+        shares = _shares_from_rate(remark, row.get("cashflow_amount"))
 
     return {
         **row,
@@ -206,6 +221,101 @@ def enrich_dividend(row: dict) -> dict:
         "stock_name": stock_name,
         "shares": shares,
     }
+
+
+def attach_holding(row: dict, positions: list[dict]) -> dict:
+    """Fill stock from a unique open holding when the remark omitted the ticker."""
+    out = dict(row)
+    if out.get("stock_code") or out.get("stock_name"):
+        return out
+    remark = str(out.get("cashflow_remark") or "")
+    if not remark or "fund cash dividend" in remark.lower():
+        return out
+
+    rate = _dividend_rate(remark)
+    shares = out.get("shares")
+    amount = out.get("cashflow_amount")
+    if shares is None and rate is None:
+        return out
+
+    matches = [
+        p
+        for p in positions
+        if _holding_matches(out, p, shares=shares, rate=rate, amount=amount)
+    ]
+    if len(matches) != 1:
+        return out
+
+    pos = matches[0]
+    code = str(pos.get("code") or "").strip()
+    name = str(pos.get("name") or "").strip()
+    if not code and not name:
+        return out
+    out["stock_code"] = code
+    out["stock_name"] = name
+    qty = _float(pos.get("qty"))
+    if out.get("shares") is None and qty:
+        out["shares"] = qty
+    return out
+
+
+def _dividend_rate(remark: str) -> float | None:
+    hits = list(_REMARK_RATE_PER.finditer(remark or ""))
+    if len(hits) != 1:
+        return None
+    try:
+        amt = float(hits[0].group("amt"))
+    except (TypeError, ValueError):
+        return None
+    if amt <= 0:
+        return None
+    if hits[0].group("sen"):
+        return amt / 100.0
+    return amt
+
+
+def _shares_from_rate(remark: str, amount) -> float | None:
+    rate = _dividend_rate(remark)
+    cash = _float(amount)
+    if not rate or cash is None or cash <= 0:
+        return None
+    shares = cash / rate
+    rounded = round(shares)
+    if rounded > 0 and abs(shares - rounded) <= 0.02:
+        return float(rounded)
+    return None
+
+
+def _holding_matches(
+    row: dict,
+    pos: dict,
+    *,
+    shares: float | None,
+    rate: float | None,
+    amount,
+) -> bool:
+    code = str(pos.get("code") or "").strip()
+    if not code or parse_option_code(code):
+        return False
+    qty = _float(pos.get("qty")) or 0.0
+    if qty <= 0:
+        return False
+
+    row_acc = str(row.get("acc_id") or "")
+    pos_acc = str(pos.get("acc_id") or "")
+    if row_acc and pos_acc and row_acc != pos_acc:
+        return False
+
+    market = _CCY_MARKET.get(str(row.get("currency") or "").upper())
+    if market and not code.upper().startswith(f"{market}."):
+        return False
+
+    if shares is not None and abs(qty - shares) <= 0.51:
+        return True
+    cash = _float(amount)
+    if rate and cash is not None and abs(qty * rate - cash) <= 0.05:
+        return True
+    return False
 
 
 def _resolve_my_symbol(ticker: str) -> str:

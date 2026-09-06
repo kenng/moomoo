@@ -43,3 +43,4 @@ worker/.wrangler/
 worker/.venv/
 worker/uv.lock
 .devdbrc
+uv.lock

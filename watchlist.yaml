@@ -1,4 +1,4 @@
-# Synced from live moomoo positions (stocks/ETFs only; options excluded)
+# stocks/ETFs only; options excluded
 stocks:
   - code: "09988"
     market: HK
@@ -15,3 +15,6 @@ stocks:
   - code: "QCOM"
     market: US
     name: QUALCOMM
+  - code: "AVGO"
+    market: US
+    name: Broadcom

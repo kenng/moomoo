@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from momo.adapters import cash_flow as cash_flow_adapter
+from momo.adapters import orders as orders_adapter
 from momo.config import get_settings
 from momo.db import repo
 from momo.db.session import get_session
@@ -115,6 +116,11 @@ def get_dividend_history(
         dividends = [_row_to_dict(r) for r in rows]
         for d in dividends:
             d["is_new"] = (d["acc_id"], d["cashflow_id"]) in new_ids
+        resolved = _fill_from_holdings(
+            dividends, new_dividends, accounts=selected, trd_env=env
+        )
+        if resolved:
+            repo.upsert_dividends(session, resolved)
     finally:
         session.close()
 
@@ -240,6 +246,56 @@ def _sync_missing(
     }
 
 
+def _fill_from_holdings(
+    dividends: list[dict],
+    new_dividends: list[dict],
+    *,
+    accounts: list[dict],
+    trd_env: str,
+) -> list[dict]:
+    """Resolve remark-less stock rows from a unique open holding; persist those."""
+    needs = [
+        d
+        for d in dividends
+        if not d.get("stock_code")
+        and not d.get("stock_name")
+        and d.get("cashflow_remark")
+        and "fund cash dividend" not in str(d.get("cashflow_remark") or "").lower()
+    ]
+    if not needs or not accounts:
+        return []
+
+    positions: list[dict] = []
+    try:
+        for acc in accounts:
+            positions.extend(
+                orders_adapter.list_positions(acc["acc_id"], trd_env=trd_env)
+            )
+    except OpenDError:
+        return []
+    if not positions:
+        return []
+
+    resolved: list[dict] = []
+    by_id = {(d["acc_id"], d["cashflow_id"]): d for d in new_dividends}
+    for d in needs:
+        filled = cash_flow_adapter.attach_holding(d, positions)
+        if not filled.get("stock_code") and not filled.get("stock_name"):
+            continue
+        d["stock_code"] = filled.get("stock_code") or ""
+        d["stock_name"] = filled.get("stock_name") or ""
+        if d.get("shares") is None:
+            d["shares"] = filled.get("shares")
+        twin = by_id.get((d["acc_id"], d["cashflow_id"]))
+        if twin is not None:
+            twin["stock_code"] = d["stock_code"]
+            twin["stock_name"] = d["stock_name"]
+            if twin.get("shares") is None:
+                twin["shares"] = d.get("shares")
+        resolved.append(d)
+    return resolved
+
+
 def _row_to_dict(row) -> dict:
     base = {
         "acc_id": row.acc_id,
@@ -257,10 +313,13 @@ def _row_to_dict(row) -> dict:
         "shares": row.shares,
     }
     # Re-parse remark so older cache rows pick up parser improvements.
-    if not base["stock_code"] and not base["stock_name"] and base["cashflow_remark"]:
+    if base["cashflow_remark"] and (
+        (not base["stock_code"] and not base["stock_name"]) or base["shares"] is None
+    ):
         parsed = cash_flow_adapter.enrich_dividend(base)
-        base["stock_code"] = parsed.get("stock_code") or ""
-        base["stock_name"] = parsed.get("stock_name") or ""
+        if not base["stock_code"] and not base["stock_name"]:
+            base["stock_code"] = parsed.get("stock_code") or ""
+            base["stock_name"] = parsed.get("stock_name") or ""
         if base["shares"] is None:
             base["shares"] = parsed.get("shares")
     return base
